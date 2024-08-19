@@ -5,14 +5,7 @@
 
 #include <freertos/FreeRTOS.h> //Has to always be the first included FreeRTOS related header.
 
-#include "AdvancedConfig.hpp"
-
-#ifdef BATTERY_DISABLED_PIN
-#ifndef BATTERY_UPDATE_INTERVAL
-#error "Please define the update interval for when on battery power."
-#endif
-#define BATTERY_UPDATE_INTERVAL_US BATTERY_UPDATE_INTERVAL * 1000000
-#endif
+#include "ConfigManager.hpp"
 
 #include <freertos/task.h>
 #include <Wire.h>
@@ -45,7 +38,6 @@ TwoWire ModemI2c = TwoWire(0);
 #else
     TinyGsmClient GsmClient(Modem);
 #endif
-HttpClient NetClient(GsmClient, SERVER_FQDN, SERVER_PORT);
 
 TinyGPSPlus Gps;
 
@@ -111,7 +103,8 @@ void loop()
         default: break;
     }
 
-    String serverData = SERVER_DATA_FORMAT;
+    HttpClient httpClient(GsmClient, ConfigManager.getString(NAMEOF(SERVER_FQDN)), ConfigManager.getUShort(NAMEOF(SERVER_PORT)));
+    String serverData = ConfigManager.getString(NAMEOF(SERVER_DATA_FORMAT));
 
     StdSerial.print("Obtaining GPS data...");
     ulong start = millis();
@@ -139,25 +132,25 @@ void loop()
     }
 
     StdSerial.print("Performing network request... ");
-    NetClient.connectionKeepAlive(); //Currently, this is needed for HTTPS.
+    httpClient.connectionKeepAlive(); //Currently, this is needed for HTTPS.
 
-    NetClient.beginRequest();
-    #ifdef SERVER_HEADER_AUTHORIZATION
-        NetClient.sendHeader("Authorization", SERVER_HEADER_AUTHORIZATION);
-    #endif
-    #ifdef SERVER_ADDITIONAL_HEADERS
-    //Seperate by CLRF.
-    std::vector<String> headers = SplitString(SERVER_ADDITIONAL_HEADERS, '\n');
-    for (size_t i = 0; i < headers.size(); i++)
+    httpClient.beginRequest();
+    if (ConfigManager.isKey(NAMEOF(SERVER_HEADER_AUTHORIZATION)))
+        httpClient.sendHeader("Authorization", ConfigManager.getString(NAMEOF(SERVER_HEADER_AUTHORIZATION)));
+
+    if (ConfigManager.isKey(NAMEOF(SERVER_ADDITIONAL_HEADERS)))
     {
-        std::vector<String> header = SplitString(headers[i], ':');
-        if (header.size() != 2)
-            continue;
-        NetClient.sendHeader(header[0], header[1]);
+        //Seperate by CLRF.
+        std::vector<String> headers = SplitString(ConfigManager.getString(NAMEOF(SERVER_ADDITIONAL_HEADERS)), '\n');
+        for (size_t i = 0; i < headers.size(); i++)
+        {
+            std::vector<String> header = SplitString(headers[i], ':');
+            if (header.size() != 2)
+                continue;
+            httpClient.sendHeader(header[0], header[1]);
+        }
     }
     
-    #endif
-
     //Replace placeholders.
     serverData.replace("{{longitude}}", String(Gps.location.lng(), 6));
     serverData.replace("{{latitude}}", String(Gps.location.lat(), 6));
@@ -165,14 +158,17 @@ void loop()
     serverData.replace("{{accuracy}}", String(Gps.hdop.hdop(), 2));
 
     int err;
-    #if SERVER_METHOD == 1 //POST.
-        //Get content type from headers.
-        err = NetClient.post(SERVER_PATH, SERVER_HEADER_CONTENT_TYPE, serverData);
-    #else
-    #error "Server method not implemented."
-    #endif
-    NetClient.endRequest();
-    if (err != 0 || NetClient.responseStatusCode() != 200)
+    switch (ConfigManager.getUChar(NAMEOF(SERVER_METHOD)))
+    {
+    case 1:
+        err = httpClient.post(ConfigManager.getString(NAMEOF(SERVER_PATH)), ConfigManager.getString(NAMEOF(SERVER_HEADER_CONTENT_TYPE)), serverData);
+        break;
+    default:
+        StdSerial.println("Server method not implemented.");
+        goto sleep;
+    }
+    httpClient.endRequest();
+    if (err != 0 || httpClient.responseStatusCode() != 200)
     {
         StdSerial.println(" | FAILED");
         goto sleep;
