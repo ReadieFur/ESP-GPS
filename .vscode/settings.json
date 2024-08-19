@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "*.wsb": "xml",
+        "*.rmd": "markdown",
+        "*.txt": "log",
+        "*.tpp": "cpp"
+    }
+}
