@@ -8,7 +8,6 @@
 #include "ConfigManager.hpp"
 
 #include <freertos/task.h>
-#include <Wire.h>
 #include <TinyGsmClient.h>
 #include <SoftwareSerial.h>
 #include <HttpClient.h>
@@ -21,18 +20,13 @@
 
 #define UPDATE_INTERVAL_US UPDATE_INTERVAL * 1000000
 
-#define StdSerial Serial
-#define ModemSerial Serial1
 SoftwareSerial GpsSerial(GPS_RX, GPS_TX);
 #ifdef _DEBUG
-  StreamDebugger ModemDebugger(ModemSerial, StdSerial);
-  TinyGsm Modem(ModemDebugger);
   StreamDebugger GpsDebugger(GpsSerial, StdSerial);
 #else
   TinyGsm Modem(ModemSerial);
 #endif
 
-TwoWire ModemI2c = TwoWire(0);
 #if SERVER_SSL
     TinyGsmClientSecure GsmClient(Modem);
 #else
@@ -43,23 +37,7 @@ TinyGPSPlus Gps;
 
 void setup()
 {
-    pinMode(MODEM_PWKEY, OUTPUT);
-    pinMode(MODEM_RST, OUTPUT);
-    pinMode(MODEM_PWRON, OUTPUT);
-    digitalWrite(MODEM_PWKEY, LOW);
-    digitalWrite(MODEM_RST, HIGH);
-    digitalWrite(MODEM_PWRON, HIGH);
-
     StdSerial.begin(115200);
-
-    ModemI2c.begin(MODEM_SDA, MODEM_SDL, 400000);
-    ModemSerial.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
-    Modem.restart();
-
-    #ifdef MODEM_PIN
-    if (strlen(MODEM_PIN) && Modem.getSimStatus() != 3)
-        Modem.simUnlock(MODEM_PIN);
-    #endif
 
     #ifdef BATTERY_DISABLED_PIN
     pinMode(BATTERY_DISABLED_PIN, INPUT);
@@ -93,13 +71,13 @@ std::vector<String> SplitString(const String &data, char delimiter)
 #ifdef ARDUINO
 void loop()
 {
-    switch(esp_sleep_get_wakeup_cause())
+    switch (esp_sleep_get_wakeup_cause())
     {
-        case ESP_SLEEP_WAKEUP_EXT0: Serial.println("Wakeup caused by external signal using RTC_IO"); break;
-        case ESP_SLEEP_WAKEUP_EXT1: Serial.println("Wakeup caused by external signal using RTC_CNTL"); break;
-        case ESP_SLEEP_WAKEUP_TIMER: Serial.println("Wakeup caused by timer"); break;
-        case ESP_SLEEP_WAKEUP_TOUCHPAD: Serial.println("Wakeup caused by touchpad"); break;
-        case ESP_SLEEP_WAKEUP_ULP: Serial.println("Wakeup caused by ULP program"); break;
+        case ESP_SLEEP_WAKEUP_EXT0: StdSerial.println("Wakeup caused by external signal using RTC_IO"); break;
+        case ESP_SLEEP_WAKEUP_EXT1: StdSerial.println("Wakeup caused by external signal using RTC_CNTL"); break;
+        case ESP_SLEEP_WAKEUP_TIMER: StdSerial.println("Wakeup caused by timer"); break;
+        case ESP_SLEEP_WAKEUP_TOUCHPAD: StdSerial.println("Wakeup caused by touchpad"); break;
+        case ESP_SLEEP_WAKEUP_ULP: StdSerial.println("Wakeup caused by ULP program"); break;
         default: break;
     }
 
@@ -185,7 +163,7 @@ sleep: //TODO: Temporary.
     #endif
     StdSerial.println("Entering standby...");
     esp_deep_sleep_start();
-}
+}   
 #else
 extern "C" void app_main()
 {

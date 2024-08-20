@@ -5,10 +5,8 @@
 #define MODEM_RST               GPIO_NUM_0
 #define MODEM_TX                GPIO_NUM_3
 #define MODEM_RX                GPIO_NUM_4
-#define MODEM_SDA               GPIO_NUM_8
-#define MODEM_SDL               GPIO_NUM_9
-#define MODEM_PWKEY             GPIO_NUM_1
-#define MODEM_PWRON             GPIO_NUM_2
+#define MODEM_DTR               GPIO_NUM_1
+#define MODEM_RING              GPIO_NUM_2      //Optional - Comment out to disable incoming data detection.
 #define GPS_TX                  GPIO_NUM_6
 #define GPS_RX                  GPIO_NUM_7
 #define GPS_PWR                 GPIO_NUM_10     //Optional - Comment out to disable putting GPS to sleep when not in use.
@@ -27,9 +25,10 @@
 #define MODEM_USERNAME          ""      //The username for the SIM card.
 #define MODEM_PASSWORD          ""      //The password for the SIM card.
 // #define MODEM_PIN               ""      //The pin used to unlock device specific SIMs. Comment out to disable.
+#define ENABLE_SMS_API                  //Whether to enable the SMS API. Comment out to disable.
+#define RESPOND_TO_API_CALLS    false   //Whether to respond to API calls via SMS. Only used if ENABLE_SMS_API is defined.
 #define TINY_GSM_MODEM_SIM800           //The modem module installed. Leave as TINY_GSM_MODEM_SIM800 for SIM800L.
 #define TINY_GSM_RX_BUFFER      1024    //Don't change.
-#define RESPOND_TO_API_CALLS    false   //Whether to respond to API calls via SMS.
 #pragma endregion
 
 #pragma region HTTP
