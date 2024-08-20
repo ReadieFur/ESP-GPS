@@ -24,24 +24,24 @@
 #define MODEM_USERNAME          ""      //The username for the SIM card.
 #define MODEM_PASSWORD          ""      //The password for the SIM card.
 // #define MODEM_PIN               ""      //The pin used to unlock device specific SIMs. Comment out to disable.
-// #define ENABLE_SMS_API                  //Whether to enable the SMS API. Comment out to disable.
+#define ENABLE_SMS_API                  //Whether to enable the SMS API. Comment out to disable.
 #define RESPOND_TO_API_CALLS    false   //Whether to respond to API calls via SMS. Only used if ENABLE_SMS_API is defined.
 #define TINY_GSM_MODEM_SIM800           //The modem module installed. Leave as TINY_GSM_MODEM_SIM800 for SIM800L.
 #define TINY_GSM_RX_BUFFER      1024    //Don't change.
 #pragma endregion
 
 #pragma region HTTP
-#define SERVER_FQDN                 "192.168.1.226"                         //The server to send data to.
-#define SERVER_PORT                 8123                                    //The port on the server to send data to.
-#define SERVER_PATH                 "/api/states/device_tracker.esp_gps"    //The path on the server to send data to.
+#define SERVER_FQDN                 ""                                      //The server to send data to.
+#define SERVER_PORT                 80                                      //The port on the server to send data to.
+#define SERVER_PATH                 ""                                      //The path on the server to send data to.
 #define SERVER_SSL                  false                                   //Whether to use SSL (HTTPS) or not.
 #define SERVER_METHOD               1                                       //The HTTP method to use. 1 = POST.
-#define SERVER_HEADER_CONTENT_TYPE  "application/json"                      //The content type to send to the server.
+#define SERVER_HEADER_CONTENT_TYPE  ""                                      //The content type to send to the server.
 /* SERVER_HEADER_AUTHORIZATION:
  * The authorization header to send to the server.
  * Leave blank to disable authorization.
  */
-#define SERVER_HEADER_AUTHORIZATION "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwYzMwYjVmZmJlZjU0ZmZkYTRkMjQzMDg1MWMzMjUwZiIsImlhdCI6MTcyNDA3NTUxMiwiZXhwIjoyMDM5NDM1NTEyfQ.er9xlmVez8jMc0fYSbxZQ3pBv48MwahA-5iflVEZ3H4"
+#define SERVER_HEADER_AUTHORIZATION ""
 /* SERVER_DATA_FORMAT:
  * The format to send data to the server in.
  * Values from sensors should be wrapped by {{}}.
@@ -49,7 +49,7 @@
  * (Nested quotes must be escaped with a backslash).
  * Example: "{\"latitude\":{{latitude}},\"longitude\":{{longitude}},\"accuracy\":{{accuracy}}}"
  */
-#define SERVER_DATA_FORMAT "{\"state\":\"unknown\",\"attributes\":{\"source_type\":\"gps\",\"latitude\":{{latitude}},\"longitude\":{{longitude}},\"gps_accuracy\":{{accuracy}}}}"
+#define SERVER_DATA_FORMAT ""
 /* SERVER_ADDITIONAL_HEADERS:
  * Additional headers to send to the server.
  * Additonal headers should be separated by a newline character (\n).

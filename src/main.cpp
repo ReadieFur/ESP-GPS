@@ -16,7 +16,7 @@
 #include <chrono>
 #include <vector>
 #ifdef _DEBUG
-  #include <StreamDebugger.h>
+#include <StreamDebugger.h>
 #endif
 
 #ifdef BATTERY_DISABLED_PIN
