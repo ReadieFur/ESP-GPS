@@ -26,7 +26,7 @@
 #define MODEM_USERNAME          ""      //The username for the SIM card.
 #define MODEM_PASSWORD          ""      //The password for the SIM card.
 // #define MODEM_PIN               ""      //The pin used to unlock device specific SIMs. Comment out to disable.
-#define ENABLE_SMS_API                  //Whether to enable the SMS API. Comment out to disable.
+// #define ENABLE_SMS_API                  //Whether to enable the SMS API. Comment out to disable.
 #define RESPOND_TO_API_CALLS    false   //Whether to respond to API calls via SMS. Only used if ENABLE_SMS_API is defined.
 #define TINY_GSM_MODEM_SIM800           //The modem module installed. Leave as TINY_GSM_MODEM_SIM800 for SIM800L.
 #define TINY_GSM_RX_BUFFER      1024    //Don't change.

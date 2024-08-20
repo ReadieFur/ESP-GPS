@@ -138,9 +138,10 @@ bool InitModem()
 
     #ifdef ENABLE_SMS_API
     //Configure SMS storage and notifications.
-    Modem.sendAT(GF("+CPMS=\"SM\",\"SM\",\"SM\""));
-    Modem.waitResponse();
     Modem.sendAT(GF("+CMGF=1"));
+    Modem.waitResponse();
+    // Modem.sendAT(GF("+CPMS=\"SM\",\"SM\",\"SM\"")); //Store on SIM card (persistent).
+    Modem.sendAT(GF("+CPMS=\"ME\",\"ME\",\"ME\"")); //Store in memory (volatile).
     Modem.waitResponse();
     Modem.sendAT(GF("+CNMI=2,1,0,0,0"));
     Modem.waitResponse();
@@ -201,7 +202,64 @@ void ConfigureSleep()
 #ifdef ENABLE_SMS_API
 void ProcessSMS()
 {
-    //TODO.
+    //List all unread SMS messages in internal memory.
+    Modem.sendAT(GF("+CMGL=\"REC UNREAD\""));
+    String response = Modem.stream.readString();
+    // StdSerial.println(response); //Print response for debugging.
+
+    //Parse the response to find and read each unread SMS.
+    int index = 0;
+    while ((index = response.indexOf("+CMGL: ", index)) != -1)
+    {
+        int commaPos = response.indexOf(',', index);
+        int smsIndex = response.substring(index + 7, commaPos).toInt();
+
+        //Read the SMS message at the specified index.
+        Modem.sendAT(GF("+CMGR="), smsIndex);
+        String smsContent = Modem.stream.readString();
+        //TODO: Seperate data fields.
+        StdSerial.println(smsContent); //Print SMS content for debugging.
+
+        String responseMessage = "Unknown SMS API call.";
+
+        //Process message.
+        if (strcasecmp(smsContent.c_str(), "publish"))
+        {
+            //Publish GPS data (occurs anyway so for now we do nothing here).
+            //Though if RESPOND_TO_API_CALLS is true perhaps we could send the location back over SMS.
+        }
+        else if (smsContent.indexOf('=') != -1)
+        {            
+            int seperatorIndex = smsContent.indexOf('=');
+            //Test if message is a configuration update.
+            String key = smsContent.substring(0, seperatorIndex);
+            key.toUpperCase();
+            String value = smsContent.substring(seperatorIndex + 1);
+
+            //All valid settings are predefined within the settings so if the key dosent exist than an invalid key has been provided.
+            if (Settings.isKey(key.c_str()))
+            {
+                //TODO: Store as the correct datatype.
+                Settings.putString(key.c_str(), value);
+            }
+            else
+            {
+                StdSerial.println("Invalid settings key provided in SMS API call: " + key);
+            }
+        }
+
+        //Delete the SMS message after reading.
+        Modem.sendAT(GF("+CMGD="), smsIndex);
+        Modem.waitResponse();
+
+        if (Settings.getBool(NAMEOF(RESPOND_TO_API_CALLS)))
+        {
+            // Modem.sendSMS(, responseMessage);
+        }
+
+        //Move to the next SMS in the response.
+        index = commaPos;
+    }
 }
 #endif
 
@@ -264,6 +322,7 @@ bool PublishData()
     serverData.replace("{{latitude}}", String(Gps.location.lat(), 6));
     serverData.replace("{{altitude}}", String(Gps.altitude.meters(), 2));
     serverData.replace("{{accuracy}}", String(Gps.hdop.hdop(), 2));
+    //TODO: Apparently I can get the battery state of charge with "AT+CBC"?
 
     int err;
     switch (Settings.getUChar(NAMEOF(SERVER_METHOD)))
