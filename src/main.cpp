@@ -4,50 +4,49 @@
 //https://randomnerdtutorials.com/esp32-deep-sleep-arduino-ide-wake-up-sources/
 
 #include <freertos/FreeRTOS.h> //Has to always be the first included FreeRTOS related header.
-
-#include "ConfigManager.hpp"
-
 #include <freertos/task.h>
-#include <TinyGsmClient.h>
+#include "Config.h"
+#include <Preferences.h>
+#include <stdlib.h>
+#include <esp32-hal-gpio.h>
 #include <SoftwareSerial.h>
-#include <HttpClient.h>
-#include <vector>
-#include <chrono>
+#include <TinyGsmClient.h>
 #include <TinyGPSPlus.h>
+#include <HttpClient.h>
+#include <chrono>
+#include <vector>
 #ifdef _DEBUG
   #include <StreamDebugger.h>
 #endif
 
-#define UPDATE_INTERVAL_US UPDATE_INTERVAL * 1000000
+#ifdef BATTERY_DISABLED_PIN
+#ifndef BATTERY_UPDATE_INTERVAL
+#error "Please define the update interval for when on battery power."
+#endif
+#endif
+#if SERVER_METHOD < 1 || SERVER_METHOD > 1
+#error "Server method not implemented."
+#endif
+
+#define NAMEOF(name) #name
+#define StdSerial Serial
+#define ModemSerial Serial1
+
+Preferences Settings;
+
+#ifdef _DEBUG
+StreamDebugger _modemDebugger(ModemSerial, StdSerial);
+TinyGsm Modem(_modemDebugger);
+#else
+TinyGsm Modem(ModemSerial);
+#endif
+TinyGsmClient* GsmClient = nullptr;
 
 SoftwareSerial GpsSerial(GPS_RX, GPS_TX);
 #ifdef _DEBUG
-  StreamDebugger GpsDebugger(GpsSerial, StdSerial);
-#else
-  TinyGsm Modem(ModemSerial);
+StreamDebugger _gpsDebugger(GpsSerial, StdSerial);
 #endif
-
-#if SERVER_SSL
-    TinyGsmClientSecure GsmClient(Modem);
-#else
-    TinyGsmClient GsmClient(Modem);
-#endif
-
 TinyGPSPlus Gps;
-
-void setup()
-{
-    StdSerial.begin(115200);
-
-    #ifdef BATTERY_DISABLED_PIN
-    pinMode(BATTERY_DISABLED_PIN, INPUT);
-    uint64_t batteryPinMask = 1ULL << BATTERY_DISABLED_PIN;
-    esp_deep_sleep_enable_gpio_wakeup(BATTERY_DISABLED_PIN, ESP_GPIO_WAKEUP_GPIO_LOW);
-    esp_sleep_enable_timer_wakeup(digitalRead(BATTERY_DISABLED_PIN) == LOW ? BATTERY_UPDATE_INTERVAL_US : UPDATE_INTERVAL_US);
-    #else
-    esp_sleep_enable_timer_wakeup(UPDATE_INTERVAL_US);
-    #endif
-}
 
 std::vector<String> SplitString(const String &data, char delimiter)
 {
@@ -68,58 +67,189 @@ std::vector<String> SplitString(const String &data, char delimiter)
     return result;
 }
 
-#ifdef ARDUINO
-void loop()
+void InitPreferences()
 {
-    switch (esp_sleep_get_wakeup_cause())
-    {
-        case ESP_SLEEP_WAKEUP_EXT0: StdSerial.println("Wakeup caused by external signal using RTC_IO"); break;
-        case ESP_SLEEP_WAKEUP_EXT1: StdSerial.println("Wakeup caused by external signal using RTC_CNTL"); break;
-        case ESP_SLEEP_WAKEUP_TIMER: StdSerial.println("Wakeup caused by timer"); break;
-        case ESP_SLEEP_WAKEUP_TOUCHPAD: StdSerial.println("Wakeup caused by touchpad"); break;
-        case ESP_SLEEP_WAKEUP_ULP: StdSerial.println("Wakeup caused by ULP program"); break;
-        default: break;
-    }
+    Settings.begin("config", false);
 
-    HttpClient httpClient(GsmClient, ConfigManager.getString(NAMEOF(SERVER_FQDN)), ConfigManager.getUShort(NAMEOF(SERVER_PORT)));
-    String serverData = ConfigManager.getString(NAMEOF(SERVER_DATA_FORMAT));
+    #ifdef RESTORE_DEFAULTS_ON_FLASH
+    Settings.clear();
+    #endif
 
-    StdSerial.print("Obtaining GPS data...");
-    ulong start = millis();
-    while (!Gps.location.isUpdated() && GpsSerial.available() > 0 && millis() - start < std::chrono::seconds(10).count())
-        Gps.encode(GpsSerial.read());
-    if (!Gps.location.isUpdated())
+    if (!Settings.isKey(NAMEOF(UPDATE_INTERVAL)))
+        Settings.putULong(NAMEOF(UPDATE_INTERVAL), UPDATE_INTERVAL);
+    if (!Settings.isKey(NAMEOF(BATTERY_UPDATE_INTERVAL)))
+        Settings.putULong(NAMEOF(BATTERY_UPDATE_INTERVAL), BATTERY_UPDATE_INTERVAL);
+    if (!Settings.isKey(NAMEOF(MAX_RETRIES)))
+        Settings.putUShort(NAMEOF(MAX_RETRIES), MAX_RETRIES);
+    if (!Settings.isKey(NAMEOF(RETRY_INTERVAL)))
+        Settings.putULong(NAMEOF(RETRY_INTERVAL), RETRY_INTERVAL);
+    
+    if (!Settings.isKey(NAMEOF(RESPOND_TO_API_CALLS)))
+        Settings.putBool(NAMEOF(RESPOND_TO_API_CALLS), RESPOND_TO_API_CALLS);
+
+    if (!Settings.isKey(NAMEOF(SERVER_FQDN)))
+        Settings.putString(NAMEOF(SERVER_FQDN), SERVER_FQDN);
+    if (!Settings.isKey(NAMEOF(SERVER_PORT)))
+        Settings.putUShort(NAMEOF(SERVER_PORT), SERVER_PORT);
+    if (!Settings.isKey(NAMEOF(SERVER_PATH)))
+        Settings.putString(NAMEOF(SERVER_PATH), SERVER_PATH);
+    if (!Settings.isKey(NAMEOF(SERVER_SSL)))
+        Settings.putBool(NAMEOF(SERVER_SSL), SERVER_SSL);
+    if (!Settings.isKey(NAMEOF(SERVER_METHOD)))
+        Settings.putUChar(NAMEOF(SERVER_METHOD), SERVER_METHOD);
+    if (!Settings.isKey(NAMEOF(SERVER_HEADER_CONTENT_TYPE)))
+        Settings.putString(NAMEOF(SERVER_HEADER_CONTENT_TYPE), SERVER_HEADER_CONTENT_TYPE);
+    if (!Settings.isKey(NAMEOF(SERVER_HEADER_AUTHORIZATION)))
+        Settings.putString(NAMEOF(SERVER_HEADER_AUTHORIZATION), SERVER_HEADER_AUTHORIZATION);
+    if (!Settings.isKey(NAMEOF(SERVER_DATA_FORMAT)))
+        Settings.putString(NAMEOF(SERVER_DATA_FORMAT), SERVER_DATA_FORMAT);
+    if (!Settings.isKey(NAMEOF(SERVER_ADDITIONAL_HEADERS)))
+        Settings.putString(NAMEOF(SERVER_ADDITIONAL_HEADERS), SERVER_ADDITIONAL_HEADERS);
+}
+
+bool InitModem()
+{
+    //Configure additional pins manually (not controlled by external libraries).
+    pinMode(MODEM_RST, OUTPUT);
+    digitalWrite(MODEM_RST, HIGH);
+    #ifdef MODEM_DTR
+    pinMode(MODEM_DTR, OUTPUT);
+    digitalWrite(MODEM_DTR, LOW);
+    #endif
+    #ifdef MODEM_RING
+    pinMode(MODEM_RING, OUTPUT);
+    digitalWrite(MODEM_RING, LOW);
+    #endif
+
+    //Begin communication with the modem.
+    ModemSerial.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
+    Modem.restart();
+
+    #ifdef MODEM_PIN
+    //Unlock the SIM.
+    if (strlen(MODEM_PIN)
+        && Modem.getSimStatus() != 3
+        && !Modem.simUnlock(MODEM_PIN));
     {
-        StdSerial.println(" | FAILED");
-        goto sleep;
+        StdSerial.println("Failed to unlock SIM card.");
+        abort();
     }
+    #endif
+
+    #ifdef ENABLE_SMS_API
+    //Configure SMS storage and notifications.
+    Modem.sendAT(GF("+CPMS=\"SM\",\"SM\",\"SM\""));
+    Modem.waitResponse();
+    Modem.sendAT(GF("+CMGF=1"));
+    Modem.waitResponse();
+    Modem.sendAT(GF("+CNMI=2,1,0,0,0"));
+    Modem.waitResponse();
+    #endif
+
+    GsmClient = Settings.getBool(NAMEOF(SERVER_SSL))
+        ? new TinyGsmClientSecure(Modem)
+        : new TinyGsmClient(Modem);
 
     StdSerial.print("Connecting to APN: ");
     StdSerial.print(MODEM_APN);
     if (!Modem.gprsConnect(MODEM_APN, MODEM_USERNAME, MODEM_PASSWORD))
     {
         StdSerial.println(" | FAILED");
-        goto sleep; //TODO: Retry.
+        return false;
     }
 
+    return true;
+}
+
+void InitGps()
+{
+    GpsSerial.begin(9600);
+}
+
+void ConfigureSleep()
+{
+    uint64_t sleepDuration = 0;
+    uint64_t gpioMask = 0;
+
+    #ifdef MODEM_RING
+    pinMode(MODEM_RING, INPUT);
+    if (!esp_sleep_is_valid_wakeup_gpio(MODEM_RING))
+    {
+        StdSerial.println(String("Invalid GPIO for ") + NAMEOF(MODEM_RING));
+        abort();
+    }
+    gpioMask |= BIT(MODEM_RING);
+    #endif
+
+    #ifdef BATTERY_DISABLED_PIN
+    pinMode(BATTERY_DISABLED_PIN, INPUT);
+    if (!esp_sleep_is_valid_wakeup_gpio(BATTERY_DISABLED_PIN))
+    {
+        StdSerial.println(String("Invalid GPIO for ") + NAMEOF(BATTERY_DISABLED_PIN));
+        abort();
+    }
+    gpioMask |= BIT(BATTERY_DISABLED_PIN);
+    sleepDuration = Settings.getULong(digitalRead(BATTERY_DISABLED_PIN) == LOW ? NAMEOF(BATTERY_UPDATE_INTERVAL) : NAMEOF(UPDATE_INTERVAL));
+    #else
+    sleepDuration = Settings.getULong(NAMEOF(UPDATE_INTERVAL));
+    #endif
+
+    esp_sleep_enable_timer_wakeup(sleepDuration * 1000000);
+    esp_deep_sleep_enable_gpio_wakeup(BIT(MODEM_RING), ESP_GPIO_WAKEUP_GPIO_HIGH);
+}
+
+#ifdef ENABLE_SMS_API
+void ProcessSMS()
+{
+    //TODO.
+}
+#endif
+
+//TODO: Possibly add ability to accept incoming calls to listen into (as a security feature, not a stalking feature).
+
+bool GetGps()
+{
+    StdSerial.print("Obtaining GPS data...");
+    ulong start = millis();
+    while (!Gps.location.isUpdated() && GpsSerial.available() > 0 && millis() - start < std::chrono::seconds(2).count())
+        Gps.encode(GpsSerial.read());
+
+    if (!Gps.location.isUpdated())
+    {
+        StdSerial.println(" | FAILED");
+        return false;
+    }
+
+    return true;
+}
+
+bool PublishData()
+{
     StdSerial.print("Waiting for network...");
     if (!Modem.waitForNetwork())
     {
         StdSerial.println(" | FAILED");
-        goto sleep;
+        return false;
     }
 
+    HttpClient httpClient(*GsmClient,
+        Settings.getString(NAMEOF(SERVER_FQDN)),
+        Settings.getUShort(NAMEOF(SERVER_PORT)));
+    String serverData = Settings.getString(NAMEOF(SERVER_DATA_FORMAT));
+
     StdSerial.print("Performing network request... ");
-    httpClient.connectionKeepAlive(); //Currently, this is needed for HTTPS.
+
+    if (Settings.getBool(NAMEOF(SERVER_SSL)))
+        httpClient.connectionKeepAlive(); //Currently, this is needed for HTTPS.
 
     httpClient.beginRequest();
-    if (ConfigManager.isKey(NAMEOF(SERVER_HEADER_AUTHORIZATION)))
-        httpClient.sendHeader("Authorization", ConfigManager.getString(NAMEOF(SERVER_HEADER_AUTHORIZATION)));
+    if (Settings.isKey(NAMEOF(SERVER_HEADER_AUTHORIZATION)) && strlen(Settings.getString(NAMEOF(SERVER_HEADER_AUTHORIZATION)).c_str()))
+        httpClient.sendHeader("Authorization", Settings.getString(NAMEOF(SERVER_HEADER_AUTHORIZATION)));
 
-    if (ConfigManager.isKey(NAMEOF(SERVER_ADDITIONAL_HEADERS)))
+    if (Settings.isKey(NAMEOF(SERVER_ADDITIONAL_HEADERS)))
     {
         //Seperate by CLRF.
-        std::vector<String> headers = SplitString(ConfigManager.getString(NAMEOF(SERVER_ADDITIONAL_HEADERS)), '\n');
+        std::vector<String> headers = SplitString(Settings.getString(NAMEOF(SERVER_ADDITIONAL_HEADERS)), '\n');
         for (size_t i = 0; i < headers.size(); i++)
         {
             std::vector<String> header = SplitString(headers[i], ':');
@@ -136,40 +266,97 @@ void loop()
     serverData.replace("{{accuracy}}", String(Gps.hdop.hdop(), 2));
 
     int err;
-    switch (ConfigManager.getUChar(NAMEOF(SERVER_METHOD)))
+    switch (Settings.getUChar(NAMEOF(SERVER_METHOD)))
     {
     case 1:
-        err = httpClient.post(ConfigManager.getString(NAMEOF(SERVER_PATH)), ConfigManager.getString(NAMEOF(SERVER_HEADER_CONTENT_TYPE)), serverData);
+        err = httpClient.post(Settings.getString(NAMEOF(SERVER_PATH)), Settings.getString(NAMEOF(SERVER_HEADER_CONTENT_TYPE)), serverData);
         break;
     default:
         StdSerial.println("Server method not implemented.");
-        goto sleep;
+        return false;
     }
     httpClient.endRequest();
-    if (err != 0 || httpClient.responseStatusCode() != 200)
+    if (err != 0
+        || httpClient.responseStatusCode() < 200
+        || httpClient.responseStatusCode() >= 300)
     {
         StdSerial.println(" | FAILED");
-        goto sleep;
+        return false;
     }
 
-    StdSerial.println(" | SUCCESS");
+    StdSerial.println(" | " + String(httpClient.responseStatusCode()) + " SUCCESS");
 
-sleep: //TODO: Temporary.
-    GsmClient.stop();
+    return true;
+}
+
+void Sleep() _ATTRIBUTE ((__noreturn__));
+void Sleep()
+{
+    GsmClient->stop();
     Modem.gprsDisconnect();
 
-    #ifdef BATTERY_DISABLED_PIN
-    esp_sleep_enable_timer_wakeup(digitalRead(BATTERY_DISABLED_PIN) == LOW ? BATTERY_UPDATE_INTERVAL_US : UPDATE_INTERVAL_US);
-    #endif
+    //TODO: Put GPS to sleep.
+
     StdSerial.println("Entering standby...");
     esp_deep_sleep_start();
-}   
+}
+
+bool RetryWrapper(bool (*method)(void))
+{
+    for (size_t i = 0; i < Settings.getUShort(NAMEOF(MAX_RETRIES)); i++)
+    {
+        if (method())
+            return true;
+        vTaskDelay(pdMS_TO_TICKS(Settings.getULong(NAMEOF(RETRY_INTERVAL)) * 1000));
+    }
+
+    StdSerial.println("Failed after maximum number of allowed retries");
+    return false;
+}
+
+void Main()
+{
+    /* esp_sleep_get_wakeup_cause currently not used.
+     * Originally it was in place to run specific actions on boot.
+     * However for redundancy, I will run all actions on wake (i.e. process SMS, relay location, etc).
+     */
+    // esp_sleep_source_t wakeReason = esp_sleep_get_wakeup_cause();
+
+    InitPreferences();
+
+    ConfigureSleep();
+
+    if (!RetryWrapper(InitModem))
+        goto sleep;
+    #ifdef ENABLE_SMS_API
+    ProcessSMS();
+    #endif
+
+    InitGps();
+    if (!RetryWrapper(GetGps))
+        goto sleep;
+
+    if (!RetryWrapper(PublishData))
+        goto sleep;
+sleep:
+    Sleep();
+}
+
+#ifdef ARDUINO
+void setup()
+{
+    Main();
+}
+
+void loop()
+{
+    //Shouldn't ever be reached.
+    vTaskDelete(NULL);
+}
 #else
 extern "C" void app_main()
 {
-    setup();
-    for (;;)
-        loop();
+    Main();
     //app_main IS allowed to return as per the ESP32 documentation (other FreeRTOS tasks will continue to run).
 }
 #endif

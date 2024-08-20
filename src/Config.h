@@ -5,19 +5,20 @@
 #define MODEM_RST               GPIO_NUM_0
 #define MODEM_TX                GPIO_NUM_3
 #define MODEM_RX                GPIO_NUM_4
-#define MODEM_DTR               GPIO_NUM_1
+#define MODEM_DTR               GPIO_NUM_1      //Optional - Comment out to disable incoming data detection.
 #define MODEM_RING              GPIO_NUM_2      //Optional - Comment out to disable incoming data detection.
 #define GPS_TX                  GPIO_NUM_6
 #define GPS_RX                  GPIO_NUM_7
 #define GPS_PWR                 GPIO_NUM_10     //Optional - Comment out to disable putting GPS to sleep when not in use.
-#define BATTERY_DISABLED_PIN    GPIO_NUM_5      //Optional - Comment out to disable battery power check.
+#define BATTERY_DISABLED_PIN    GPIO_NUM_5      //Optional - Comment out to disable battery power check. (Low when on battery).
 #pragma endregion
 
 #pragma region General
-#define RESTORE_DEFAULTS_ON_FLASH           //Whether to restore defaults on flash. Comment out to disable.
+// #define RESTORE_DEFAULTS_ON_FLASH           //Whether to restore defaults on flash. Comment out to disable. (Currently not implimented).
 #define UPDATE_INTERVAL             60      //The time in seconds between updates to the server.
 #define BATTERY_UPDATE_INTERVAL     60 * 5  //Update interval in seconds when on battery. Only used if BATTERY_DISABLED_PIN is defined.
 #define MAX_RETRIES                 10      //The number of times to retry upon failure before giving up.
+#define RETRY_INTERVAL              5       //The time in seconds to wait before retrying.
 #pragma endregion
 
 #pragma region Modem
@@ -40,7 +41,7 @@
 #define SERVER_HEADER_CONTENT_TYPE  "application/json"                      //The content type to send to the server.
 /* SERVER_HEADER_AUTHORIZATION:
  * The authorization header to send to the server.
- * Comment out to disable authorization.
+ * Leave blank to disable authorization.
  */
 #define SERVER_HEADER_AUTHORIZATION "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwYzMwYjVmZmJlZjU0ZmZkYTRkMjQzMDg1MWMzMjUwZiIsImlhdCI6MTcyNDA3NTUxMiwiZXhwIjoyMDM5NDM1NTEyfQ.er9xlmVez8jMc0fYSbxZQ3pBv48MwahA-5iflVEZ3H4"
 /* SERVER_DATA_FORMAT:
@@ -54,7 +55,7 @@
 /* SERVER_ADDITIONAL_HEADERS:
  * Additional headers to send to the server.
  * Additonal headers should be separated by a newline character (\n).
- * Comment out to disable.
+ * Leave blank to disable.
  */
-// #define SERVER_ADDITIONAL_HEADERS ""
+#define SERVER_ADDITIONAL_HEADERS ""
 #pragma endregion
