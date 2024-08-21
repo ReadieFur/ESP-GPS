@@ -1,8 +1,0 @@
-[wokwi]
-version = 1
-firmware = '../.pio/build/c3_dev/firmware.bin'
-elf = '../.pio/build/c3_dev/firmware.elf'
-
-[[chip]]
-name = 'gps-fake'  # To use the chip in diagram.json, add a part with "chip-inverter" type.
-binary = 'chips/gps/gps-fake.chip.wasm'
