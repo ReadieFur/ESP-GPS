@@ -28,8 +28,8 @@
 #define MODEM_USERNAME          ""      //The username for the SIM card.
 #define MODEM_PASSWORD          ""      //The password for the SIM card.
 // #define MODEM_PIN               ""      //The pin used to unlock device specific SIMs. Comment out to disable.
-#define ENABLE_SMS_API                  //Whether to enable the SMS API. Comment out to disable.
-#define RESPOND_TO_API_CALLS    false   //Whether to respond to API calls via SMS. Only used if ENABLE_SMS_API is defined.
+// #define ENABLE_SMS_API                  //Whether to enable the SMS API. Comment out to disable.
+// #define RESPOND_TO_API_CALLS    false   //Whether to respond to API calls via SMS. Only used if ENABLE_SMS_API is defined.
 #define TINY_GSM_MODEM_SIM800           //The modem module installed. Leave as TINY_GSM_MODEM_SIM800 for SIM800L.
 #define TINY_GSM_RX_BUFFER      1024    //Don't change.
 #pragma endregion
@@ -38,7 +38,7 @@
 #define SERVER_FQDN                 ""                                      //The server to send data to.
 #define SERVER_PORT                 80                                      //The port on the server to send data to.
 #define SERVER_PATH                 ""                                      //The path on the server to send data to.
-#define SERVER_SSL                  false                                   //Whether to use SSL (HTTPS) or not.
+// #define SERVER_SSL                  false                                   //Whether to use SSL (HTTPS) or not.
 #define SERVER_METHOD               1                                       //The HTTP method to use. 1 = POST.
 #define SERVER_HEADER_CONTENT_TYPE  ""                                      //The content type to send to the server.
 /* SERVER_HEADER_AUTHORIZATION:
