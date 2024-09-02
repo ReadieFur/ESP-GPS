@@ -3,13 +3,13 @@
 //https://github.com/vshymanskyy/TinyGSM/blob/master/examples/HttpsClient/HttpsClient.ino
 //https://randomnerdtutorials.com/esp32-deep-sleep-arduino-ide-wake-up-sources/
 
-#include <freertos/FreeRTOS.h> //Has to always be the first included FreeRTOS related header.
-#include <freertos/task.h>
-#include "Config.h"
 #include "Helpers.h"
+#include "Config.h"
+#include "StdSerial.hpp"
 
 void Main()
 {
+    stdSerial.begin(115200);
 }
 
 #ifdef ARDUINO
@@ -21,7 +21,9 @@ void setup()
 void loop()
 {
     //Shouldn't ever be reached.
+    #if defined(ESP32)
     vTaskDelete(NULL);
+    #endif
 }
 #else
 extern "C" void app_main()

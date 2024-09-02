@@ -1,3 +1,7 @@
+#if defined(ESP32)
+#include <hal/gpio_types.h>
+#endif
+
 #pragma region Pinout
 //Feel free to copy this pinout or change for your board if you want to use a different pinout.
 #define MODEM_RST               GPIO_NUM_0

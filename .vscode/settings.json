@@ -59,6 +59,8 @@
         "thread": "cpp",
         "cinttypes": "cpp",
         "variant": "cpp",
-        "any": "cpp"
+        "any": "cpp",
+        "list": "cpp",
+        "ranges": "cpp"
     }
 }
