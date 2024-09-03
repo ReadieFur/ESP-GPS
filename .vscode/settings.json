@@ -61,6 +61,12 @@
         "variant": "cpp",
         "any": "cpp",
         "list": "cpp",
-        "ranges": "cpp"
+        "ranges": "cpp",
+        "bit": "cpp",
+        "compare": "cpp",
+        "concepts": "cpp",
+        "coroutine": "cpp",
+        "set": "cpp",
+        "stop_token": "cpp"
     }
 }
