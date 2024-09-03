@@ -6,30 +6,11 @@
 #include "Config.h"
 #include <SoftwareSerial.h>
 #include "Scheduler.hpp"
+#include "GSM.hpp"
 #include "GPS.hpp"
 
-SoftwareSerial modemSerial(MODEM_TX, MODEM_RX);
+GSM gsm(MODEM_TX, MODEM_RX);
 GPS gps(GPS_TX, GPS_RX);
-
-void SerialTask(void* args)
-{
-    if (Serial.available())
-    {
-        char c = Serial.read();
-        //Serial.print(c);
-        modemSerial.print(c);
-    }
-    if (modemSerial.available())
-    {
-        char c = modemSerial.read();
-        Serial.print(c);
-    }
-    // if (gpsSerial.available())
-    // {
-    //     char c = gpsSerial.read();
-    //     Serial.print(c);
-    // }
-}
 
 void GpsTask(void* args)
 {
@@ -46,10 +27,7 @@ void GpsTask(void* args)
 void Main()
 {
     Serial.begin(9600);
-    modemSerial.begin(9600);
-    // gpsSerial.begin(9600);
 
-    Scheduler::Add(1, &SerialTask);
     Scheduler::Add(1000, &GpsTask);
 }
 

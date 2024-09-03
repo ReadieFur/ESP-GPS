@@ -33,7 +33,7 @@ public:
         
         //Setting this interval to be too slow causes data to be missed or corrupted and the sentences never get complete.
         //Debating wether this is better than just updating in realtime. Less CPU is used per unit of time like this so it should theoretically be more energy efficient.
-        _updateTaskId = Scheduler::Add(1, GPS::ReadSerial, this);
+        _updateTaskId = Scheduler::Add(100, GPS::ReadSerial, this);
     }
 
     ~GPS()
