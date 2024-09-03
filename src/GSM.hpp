@@ -37,8 +37,6 @@ public:
             Serial.println("Failed to unlock SIM.");
             abort();
         }
-
-        Serial.println("SIM CCID: " + Modem->getSimCCID());
     }
 
     ~GSM()

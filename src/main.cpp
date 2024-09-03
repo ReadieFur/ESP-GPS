@@ -34,9 +34,15 @@ void Main()
     #endif
 
     gps = new GPS(GPS_TX, GPS_RX);
+    gsm = new GSM(MODEM_TX, MODEM_RX);
+
     Scheduler::Add(1000, &GpsTask);
 
-    gsm = new GSM(MODEM_TX, MODEM_RX);
+    #ifdef DEBUG
+    //Late task (allows time for me to connect to the serial.)
+    delay(5000);
+    gsm->Modem->getSimCCID();
+    #endif
 }
 
 #ifdef ARDUINO
