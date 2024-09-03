@@ -31,6 +31,14 @@ public:
         #endif
 
         Modem = new TinyGsm(*_modemSerial);
+
+        if (strlen(pin) && Modem->getSimStatus() != 3 && !Modem->simUnlock(pin))
+        {
+            Serial.println("Failed to unlock SIM.");
+            abort();
+        }
+
+        Serial.println("SIM CCID: " + Modem->getSimCCID());
     }
 
     ~GSM()

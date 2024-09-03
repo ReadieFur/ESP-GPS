@@ -9,26 +9,33 @@
 #include "GSM.hpp"
 #include "GPS.hpp"
 
-GSM gsm(MODEM_TX, MODEM_RX);
-GPS gps(GPS_TX, GPS_RX);
+GSM* gsm;
+GPS* gps;
 
 void GpsTask(void* args)
 {
-    if (!gps.TinyGps.location.isUpdated())
+    if (!gps->TinyGps.location.isUpdated())
         return;
 
     Serial.println();
     Serial.print("Lat: ");
-    Serial.println(gps.TinyGps.location.lat(), 6);
+    Serial.println(gps->TinyGps.location.lat(), 6);
     Serial.print("Lng: ");
-    Serial.println(gps.TinyGps.location.lng(), 6);
+    Serial.println(gps->TinyGps.location.lng(), 6);
 }
 
 void Main()
 {
+    //This has to be set first before any other objects are initalized as if they write to serial before this the baud is set to something different.
     Serial.begin(9600);
 
+    gsm = new GSM(MODEM_TX, MODEM_RX);
+    gps = new GPS(GPS_TX, GPS_RX);
+
     Scheduler::Add(1000, &GpsTask);
+    #ifdef DEBUG
+    Scheduler::Add(5000, [](void*){ Serial.println("SERIAL_ALIVE_CHECK:" + String(millis() / 1000)); }); //TODO: Testing only. Just for me to make sure the serial monitor or board hasn't frozen.
+    #endif
 }
 
 #ifdef ARDUINO
