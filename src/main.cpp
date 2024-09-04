@@ -2,6 +2,8 @@
 #if defined(ESP32)
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#elif defined(ESP8266)
+#include "TimedLoop.hpp"
 #endif
 #include "Config.h"
 #include <SoftwareSerial.h>
@@ -14,6 +16,10 @@ GPS* gps;
 GSM* gsm;
 TinyGsmClient* mqttClient;
 MQTT* mqtt;
+#if defined(ESP8266)
+TimedLoop connectionCheckLoop(1000);
+TimedLoop mqttLoop(100);
+#endif
 
 void GpsTask(void* args)
 {
@@ -27,8 +33,9 @@ void GpsTask(void* args)
     Serial.println(gps->TinyGps.location.lng(), 6);
 }
 
-void MqttCallback(char* topic, byte* message, unsigned int len)
+void MqttCallback(MQTT* sender, const char* topic, const char* message)
 {
+    Serial.println(String("MQTT message received at topic '") + topic + "': " + message);
 }
 
 void Main()
@@ -50,8 +57,17 @@ void Main()
     #endif
 
     mqttClient = gsm->CreateClient();
-    mqtt = new MQTT(*mqttClient, MQTT_DEVICE_ID, MQTT_BROKER, MQTT_TOPIC, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD);
-    mqtt->mqttClient->setCallback(MqttCallback);
+    mqtt = new MQTT(*mqttClient, MQTT_DEVICE_ID, MQTT_BROKER, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD);
+
+    #if defined(ESP8266)
+    connectionCheckLoop.Callback = []()
+    {
+        gsm->Connect();
+        mqtt->Connect();
+    };
+
+    mqttLoop.Callback = [](){ mqtt->Loop(); };
+    #endif
 
     #ifdef DEBUG
     //Late task (allows time for me to connect to the serial.)
@@ -71,7 +87,8 @@ void loop()
     // vPortYield();
     vTaskDelete(NULL);
 #elif defined(ESP8266)
-    // gsm->Loop();
+    connectionCheckLoop.Loop();
+    mqttLoop.Loop();
     yield();
 #endif
 }
