@@ -44,7 +44,10 @@ void Main()
     Scheduler::Add(1000, &GpsTask);
 
     gsm = new GSM(MODEM_TX, MODEM_RX, MODEM_APN, MODEM_PIN, MODEM_USERNAME, MODEM_PASSWORD);
-    gsm->Modem->waitForNetwork();
+    gsm->Connect();
+    #if defined(ESP32)
+    gsm->ConfigureAutomaticConnectionCheck(0);
+    #endif
 
     mqttClient = gsm->CreateClient();
     mqtt = new MQTT(*mqttClient, MQTT_DEVICE_ID, MQTT_BROKER, MQTT_TOPIC, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD);
@@ -68,7 +71,7 @@ void loop()
     // vPortYield();
     vTaskDelete(NULL);
 #elif defined(ESP8266)
-    gsm->Loop();
+    // gsm->Loop();
     yield();
 #endif
 }
