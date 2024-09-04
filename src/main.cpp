@@ -8,9 +8,12 @@
 #include "Scheduler.hpp"
 #include "GPS.hpp"
 #include "GSM.hpp"
+#include "MQTT.hpp"
 
 GPS* gps;
 GSM* gsm;
+TinyGsmClient* mqttClient;
+MQTT* mqtt;
 
 void GpsTask(void* args)
 {
@@ -24,6 +27,10 @@ void GpsTask(void* args)
     Serial.println(gps->TinyGps.location.lng(), 6);
 }
 
+void MqttCallback(char* topic, byte* message, unsigned int len)
+{
+}
+
 void Main()
 {
     //This has to be set first before any other objects are initalized as if they write to serial before this the baud is set to something different.
@@ -34,14 +41,18 @@ void Main()
     #endif
 
     gps = new GPS(GPS_TX, GPS_RX);
-    gsm = new GSM(MODEM_TX, MODEM_RX);
-
     Scheduler::Add(1000, &GpsTask);
+
+    gsm = new GSM(MODEM_TX, MODEM_RX, MODEM_APN, MODEM_PIN, MODEM_USERNAME, MODEM_PASSWORD);
+    gsm->Modem->waitForNetwork();
+
+    mqttClient = gsm->CreateClient();
+    mqtt = new MQTT(*mqttClient, MQTT_DEVICE_ID, MQTT_BROKER, MQTT_TOPIC, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD);
+    mqtt->mqttClient->setCallback(MqttCallback);
 
     #ifdef DEBUG
     //Late task (allows time for me to connect to the serial.)
     delay(5000);
-    gsm->Modem->getSimCCID();
     #endif
 }
 
@@ -57,6 +68,7 @@ void loop()
     // vPortYield();
     vTaskDelete(NULL);
 #elif defined(ESP8266)
+    gsm->Loop();
     yield();
 #endif
 }
