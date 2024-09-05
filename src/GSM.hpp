@@ -109,14 +109,14 @@ public:
                 return 1;
             }
             
-            if (!Modem->waitForNetwork(timeout))
+            if (!Modem->waitForNetwork(timeout, true))
             {
                 Serial.println("Modem failed to connect to network after timeout.");
                 return 1;
             }
         }
 
-        if (Modem->isGprsConnected())
+        if (!Modem->isGprsConnected())
         {
             // Modem->gprsDisconnect();
 
@@ -128,7 +128,13 @@ public:
         }
 
         #ifdef DEBUG
-        Serial.println("GSM alive.");
+        Serial.println(
+            String("GPRS alive:")
+            + String("\nSignal Strength: ") + String(Modem->getSignalQuality())
+            // + String("\nProvider: ") + String(Modem->getProvider())
+            + String("\nOperator: ") + String(Modem->getOperator())
+            + String("\nIP: ") + Modem->localIP().toString()
+        );
         #endif
 
         return 0;
