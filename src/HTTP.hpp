@@ -4,11 +4,12 @@
 #include <WString.h>
 #include <map>
 #include <ArduinoHttpClient.h>
+#include <URLEncoder.h>
 
 class HTTP
 {
 private:
-    String BuildQueryString(std::map<const char*, const char*> query)
+    String BuildQueryString(std::map<String, String> query)
     {
         String queryString = "";
 
@@ -20,7 +21,7 @@ private:
             queryString += queryString.isEmpty() ? '?' : '&';
             queryString += kvp.first;
 
-            if (kvp.second != nullptr && strlen(kvp.second) != 0)
+            if (kvp.second != nullptr && !kvp.second.isEmpty())
             {
                 queryString += '=';
                 queryString += kvp.second;
@@ -33,6 +34,7 @@ private:
             queryString.remove(queryString.length() - 1);
 
         return queryString;
+        // return URLEncoder.encode(queryString);
     }
     
 public:
@@ -48,11 +50,11 @@ public:
     struct SRequest
     {
         SMethod method;
-        const char* path;
-        std::map<const char*, const char*> headers;
-        std::map<const char*, const char*> query;
-        const char* requestContentType = "";
-        const char* requestBody = "";
+        String path;
+        std::map<String, String> headers = {};
+        std::map<String, String> query = {};
+        String requestContentType = "";
+        String requestBody = "";
         int responseCode;
         String responseBody;
     };
@@ -74,7 +76,12 @@ public:
         ClientHttp->beginRequest();
         for (auto &&kvp : request.headers)
             ClientHttp->sendHeader(kvp.first, kvp.second);
-        const char* path = (String(request.path) + BuildQueryString(request.query)).c_str();
+        String path = request.path + BuildQueryString(request.query);
+
+        #ifdef DEBUG
+        Serial.print("Sending request to: ");
+        Serial.println(path);
+        #endif
 
         switch (request.method)
         {

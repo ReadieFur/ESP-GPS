@@ -287,7 +287,7 @@ void loop()
             {
                 .method = HTTP_METHOD,
                 .path = HTTP_PATH,
-                .query = { { "millis", String(millis()).c_str() } }
+                .query = { { "millis", String(millis()) } }
             };
             http->ProcessRequest(request);
             Serial.print("Request response code: ");
