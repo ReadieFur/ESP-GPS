@@ -123,7 +123,7 @@ void SerialTask(void* args)
         #ifdef NET_HTTP
         else if (str.startsWith("http"))
         {
-            #if defined(ESP32) || true
+            #if defined(ESP32)
             HTTP::SRequest request =
             {
                 .method = HTTP_METHOD,
