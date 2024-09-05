@@ -38,7 +38,7 @@ private:
     }
     
 public:
-    enum SMethod
+    enum EMethod
     {
         GET,
         POST,
@@ -49,7 +49,7 @@ public:
 
     struct SRequest
     {
-        SMethod method;
+        EMethod method;
         String path;
         std::map<String, String> headers = {};
         std::map<String, String> query = {};
@@ -85,19 +85,19 @@ public:
 
         switch (request.method)
         {
-        case SMethod::GET:
+        case EMethod::GET:
             ClientHttp->get(path);
             break;
-        case SMethod::POST:
+        case EMethod::POST:
             ClientHttp->post(path, request.requestContentType, request.requestBody);
             break;
-        case SMethod::PUT:
+        case EMethod::PUT:
             ClientHttp->put(path, request.requestContentType, request.requestBody);
             break;
-        case SMethod::PATCH:
+        case EMethod::PATCH:
             ClientHttp->put(path, request.requestContentType, request.requestBody);
             break;
-        case SMethod::DELETE:
+        case EMethod::DELETE:
             ClientHttp->del(path, request.requestContentType, request.requestBody);
             break;
         }
