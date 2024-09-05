@@ -2,6 +2,10 @@
 
 //https://randomnerdtutorials.com/esp32-cloud-mqtt-broker-sim800l/
 
+#ifdef DEBUG
+#define LOG_CALLBACKS
+#endif
+
 #include <Client.h>
 #include <PubSubClient.h>
 #include <Scheduler.hpp>
@@ -25,8 +29,10 @@ private:
     void ProcessCallback(char* topic, uint8_t* message, unsigned int len)
     {
         auto callbacks = _subscriptions.find(topic);
+        #ifndef LOG_CALLBACKS
         if (callbacks == _subscriptions.end())
             return;
+        #endif
 
         char* msg = new char[len + 1];
         if (msg == nullptr)
@@ -36,6 +42,13 @@ private:
         }
         memcpy(msg, message, len);
         msg[len] = '\0';
+
+        #ifdef LOG_CALLBACKS
+        Serial.println(String("MQTT message received at topic '") + String(topic) + String("':\n") + String(msg));
+
+        if (callbacks == _subscriptions.end())
+            return;
+        #endif
 
         for (auto &&callback : callbacks->second)
             callback(this, topic, msg);
@@ -111,6 +124,10 @@ public:
             return true;
         }
 
+        #ifdef DEBUG
+        Serial.println("Connecting to MQTT...");
+        #endif
+
         if (!mqttClient.connect(_deviceId, _username, _password))
         {
             int state = mqttClient.state();
@@ -119,45 +136,52 @@ public:
             return state;
         }
 
+        #ifdef DEBUG
+        Serial.println("Connected to MQTT.");
+        #endif
+
         for (auto &&topic : _subscriptions)
         {
+            #ifdef DEBUG
+            Serial.println(String("Resubscribing to topic: ") + String(topic.first));
+            #endif
+
             if (!mqttClient.subscribe(topic.first))
             {
-                Serial.print("Failed to subscribe to MQTT topic: ");
-                Serial.println(topic.first);
+                // Serial.print("Failed to subscribe to MQTT topic: ");
+                // Serial.println(topic.first);
             }
         }
 
+        //Should always return MQTT_CONNECTED here but double checking to be sure.
         return mqttClient.connected() ? MQTT_CONNECTED : mqttClient.state();
     }
 
-    bool Subscribe(const char* topic)
+    void Subscribe(const char* topic)
     {
-        #if false
         if (_subscriptions.find(topic) != _subscriptions.end())
         {
             //Topic already exists.
-            return true;
+            // return true;
+            return;
         }
 
-        if (!mqttClient.subscribe(topic))
-        {
-            Serial.println(String("Failed to subscribe to MQTT topic: ") + topic);
-            return false;
-        }
+        #ifdef DEBUG
+        Serial.println(String("Subscribing to topic: ") + String(topic));
+        #endif
 
         //This creates a new entry when written to if the key does not exist.
         _subscriptions[topic];
-        return true;
-        #else
-        //For now have this setup so that callbacks and subscriptions have to be setup separately.
+
         if (!mqttClient.subscribe(topic))
         {
-            Serial.println(String("Failed to subscribe to MQTT topic: ") + topic);
-            return false;
+            //Ignore subscription errors for now, they only occur if MQTT is not connected and the reconnect method will restore this failed subscription.
+            // Serial.println(String("Failed to subscribe to MQTT topic: ") + topic);
+            // return false;
         }
-        return true;
-        #endif
+
+        // return true;
+        return;
     }
 
     void Unsubscribe(const char* topic)

@@ -1,7 +1,7 @@
 #pragma once
 
 #ifdef DEBUG
-#define GSM_RELAY_SERIAL
+// #define GSM_RELAY_SERIAL
 #endif
 
 #include <SoftwareSerial.h>
@@ -101,6 +101,8 @@ public:
     /// @return 0 on success, 1 for GSM/GPRS/LTE error, 2 for GPRS/EPS error.
     ushort Connect(uint32_t timeout = 5000U)
     {
+        bool reconnected = false;
+
         if (!Modem->isNetworkConnected())
         {
             if (!Modem->restart(_pin))
@@ -127,15 +129,22 @@ public:
             }
         }
 
-        #ifdef DEBUG
-        Serial.println(
-            String("GPRS alive:")
-            + String("\nSignal Strength: ") + String(Modem->getSignalQuality())
-            // + String("\nProvider: ") + String(Modem->getProvider())
-            + String("\nOperator: ") + String(Modem->getOperator())
-            + String("\nIP: ") + Modem->localIP().toString()
-        );
-        #endif
+        if (reconnected)
+        {
+            Serial.println(
+                String("GPRS connection restored:")
+                + String("\nSignal Strength: ") + String(Modem->getSignalQuality())
+                // + String("\nProvider: ") + String(Modem->getProvider())
+                + String("\nOperator: ") + String(Modem->getOperator())
+                + String("\nIP: ") + Modem->localIP().toString()
+            );
+        }
+        else
+        {
+            #ifdef DEBUG
+            Serial.println("GPRS alive.");
+            #endif
+        }
 
         return 0;
     }

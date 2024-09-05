@@ -127,7 +127,7 @@ void SerialTask(void* args)
         }
         #endif
         #ifdef NET_HTTP
-        else if (str.startsWith("http"))
+        else if (str.startsWith("http test"))
         {
             #if defined(ESP32)
             HTTP::SRequest request =
@@ -149,6 +149,12 @@ void SerialTask(void* args)
             #endif
         }
         #endif
+        else if (str.startsWith("loop"))
+        {
+            #if defined(ESP8266)
+            serialLoopCommandQueue.push(str);
+            #endif
+        }
         else
         {
             //Otherwise relay the input to the other serial busses.
@@ -193,13 +199,6 @@ void SerialTask(void* args)
 }
 #endif
 
-#if defined(DEBUG) && defined(NET_MQTT)
-void MqttCallback(MQTT* sender, const char* topic, const char* message)
-{
-    Serial.println(String("MQTT message received at topic '") + topic + "': " + message);
-}
-#endif
-
 void Main()
 {
     #ifdef DEBUG
@@ -227,9 +226,6 @@ void Main()
     mqttClient = gsm->CreateClient();
     mqtt = new MQTT(*mqttClient, MQTT_DEVICE_ID, MQTT_BROKER, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD);
     mqtt->Subscribe(MQTT_TOPIC);
-    #ifdef DEBUG
-    mqtt->AddCallback(MQTT_TOPIC, MqttCallback);
-    #endif
     #endif
 
     #ifdef NET_HTTP
@@ -264,8 +260,12 @@ void loop()
     // vPortYield();
     vTaskDelete(NULL);
 #elif defined(ESP8266)
-    // connectionCheckLoop.Loop();
-    // mqttLoop.Loop();
+    #if defined(DEBUG) || true
+    connectionCheckLoop.Loop();
+    #ifdef NET_MQTT
+    mqttLoop.Loop();
+    #endif
+    #endif
 
     #ifdef DEBUG
     while (!serialLoopCommandQueue.empty())
@@ -273,15 +273,22 @@ void loop()
         String str = serialLoopCommandQueue.front();
         serialLoopCommandQueue.pop();
         if (str.startsWith("gsm connect"))
+        {
             gsm->Connect();
+        }
         #ifdef NET_MQTT
         else if (str.startsWith("mqtt connect"))
+        {
             mqtt->Connect();
+        }
         else if (str.startsWith("mqtt publish"))
-            mqtt->Send(MQTT_TOPIC, str.c_str());
+        {
+            bool mqttSendResult = mqtt->Send(MQTT_TOPIC, (String("millis=") + String(millis())).c_str());
+            Serial.println(String("MQTT publish result: ") + String(mqttSendResult));
+        }
         #endif
         #ifdef NET_HTTP
-        else if (str.startsWith("http"))
+        else if (str.startsWith("http test"))
         {
             HTTP::SRequest request =
             {
@@ -299,6 +306,13 @@ void loop()
             }
         }
         #endif
+        else if (str.startsWith("loop"))
+        {
+            connectionCheckLoop.Loop();
+            #ifdef NET_MQTT
+            mqttLoop.Loop();
+            #endif
+        }
     }
     #endif
 
