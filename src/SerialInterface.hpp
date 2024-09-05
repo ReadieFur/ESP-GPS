@@ -9,34 +9,26 @@
 #include "GSM.hpp"
 #include "MQTT.hpp"
 #include "HTTP.hpp"
-#if defined(ESP8266)
-#include "TimedLoop.hpp"
-#endif
 
 class SerialInterface
 {
 private:
     GPS* _gps;
     GSM* _gsm;
-    MQTT* _mqtt = nullptr;
-    HTTP* _http = nullptr;
+    MQTT* _mqtt; //Not nullptr when enabled in the config.
+    HTTP* _http; //Not nullptr when enabled in the config.
     std::list<char> _serialBuffer;
-    long _taskId = 0;
-    #if defined(ESP8266)
-    std::queue<String> _loopCommandQueue;
+    long _serialTaskId = 0;
+    #if defined(ESP32)
+    long _processTaskId = 0;
     #endif
     #ifdef DEBUG
-    ushort _expectedResponses = 0;
+    ushort _expectedSerialResponses = 0;
     #endif
 
     static void SerialTask(void* args)
     {
         SerialInterface* self = static_cast<SerialInterface*>(args);
-
-        #ifdef DEBUG
-        auto gpsSerial = *self->_gps->DebugSerial;
-        auto gsmSerial = *self->_gsm->DebugSerial;
-        #endif
 
         while (Serial.available())
         {
@@ -44,6 +36,20 @@ private:
             Serial.write(c);
             self->_serialBuffer.push_back(c);
         }
+    }
+
+    static void ProcessTask(void* args)
+    {
+        SerialInterface* self = static_cast<SerialInterface*>(args);
+
+        #if defined(ESP32)
+        SerialTask(args);
+        #endif
+
+        #ifdef DEBUG
+        auto gpsSerial = *self->_gps->DebugSerial;
+        auto gsmSerial = *self->_gsm->DebugSerial;
+        #endif
 
         //Peek for newline character.
         while (std::find(self->_serialBuffer.begin(), self->_serialBuffer.end(), '\n') != self->_serialBuffer.end())
@@ -58,7 +64,6 @@ private:
                 if (c == '\n')
                     break;
             } while (!self->_serialBuffer.empty());
-            
 
             //Ignore empty strings.
             bool containsRealCharacter = false;
@@ -97,35 +102,21 @@ private:
             }
             else if (str.startsWith("gsm connect"))
             {
-                //Cant run from this timer callback on ESP8266.
-                #if defined(ESP32)
                 self->_gsm->Connect();
-                #else
-                self->_loopCommandQueue.push(str);
-                #endif
             }
             #ifdef NET_MQTT
             else if (str.startsWith("mqtt connect"))
             {
-                #if defined(ESP32)
                 self->_mqtt->Connect();
-                #else
-                self->_loopCommandQueue.push(str);
-                #endif
             }
             else if (str.startsWith("mqtt publish"))
             {
-                #if defined(ESP32)
                 self->_mqtt->Send(MQTT_TOPIC, str.c_str());
-                #else
-                self->_loopCommandQueue.push(str);
-                #endif
             }
             #endif
             #ifdef NET_HTTP
             else if (str.startsWith("http test"))
             {
-                #if defined(ESP32)
                 HTTP::SRequest request =
                 {
                     .method = HTTP_METHOD,
@@ -140,9 +131,6 @@ private:
                     Serial.println("Response body:");
                     Serial.println(request.responseBody);
                 }
-                #else
-                self->_loopCommandQueue.push(str);
-                #endif
             }
             #endif
             #endif
@@ -150,7 +138,7 @@ private:
             {
                 #ifdef DEBUG
                 //Otherwise relay the input to the other serial busses.
-                self->_expectedResponses++;
+                self->_expectedSerialResponses++;
 
                 // if (gpsSerial != nullptr)
                 //     gpsSerial->print(str);
@@ -163,13 +151,13 @@ private:
 
         #ifdef DEBUG
         //Only read from the other serial busses if we have directly written anything to them. Otherwise leave them to be read by their owning classes.
-        if (self->_expectedResponses == 0)
+        if (self->_expectedSerialResponses == 0)
             return;
 
         if (gsmSerial != nullptr)
         {
             if (gpsSerial->available())
-                self->_expectedResponses--;
+                self->_expectedSerialResponses--;
 
             while (gsmSerial->available())
             {
@@ -181,69 +169,41 @@ private:
     }
 
 public:
-    SerialInterface(GPS* gps, GSM* gsm, MQTT* mqtt = nullptr, HTTP* http = nullptr)
+    SerialInterface(GPS* gps, GSM* gsm, MQTT* mqtt, HTTP* http)
     : _gps(gps), _gsm(gsm), _mqtt(mqtt), _http(http)
     {}
 
     void Begin()
     {
-        if (_taskId != 0)
+        #if defined(ESP32)
+        if (_processTaskId != 0)
             return;
-        Scheduler::Add(100, SerialTask);
+        _processTaskId = Scheduler::Add(100, ProcessTask, this);
+        #elif defined(ESP8266)
+        if (_serialTaskId != 0)
+            return;
+        _serialTaskId = Scheduler::Add(100, SerialTask, this);
+        #endif
     }
 
     void End()
     {
-        if (_taskId == 0)
+        #if defined(ESP32)
+        if (_processTaskId == 0)
             return;
-        Scheduler::Remove(_taskId);
+        Scheduler::Remove(_processTaskId);
+        #elif defined(ESP8266)
+        if (_serialTaskId == 0)
+            return;
+        Scheduler::Remove(_serialTaskId);
+        #endif
     }
 
     #if defined(ESP8266)
     void Loop()
     {
-        while (!_loopCommandQueue.empty())
-        {
-            String str = _loopCommandQueue.front();
-            _loopCommandQueue.pop();
-            if (false) {} //Placeholder.
-            #ifdef DEBUG
-            else if (str.startsWith("gsm connect"))
-            {
-                _gsm->Connect();
-            }
-            #ifdef NET_MQTT
-            else if (str.startsWith("mqtt connect"))
-            {
-                _mqtt->Connect();
-            }
-            else if (str.startsWith("mqtt publish"))
-            {
-                bool mqttSendResult = _mqtt->Send(MQTT_TOPIC, (String("millis=") + String(millis())).c_str());
-                Serial.println(String("MQTT publish result: ") + String(mqttSendResult));
-            }
-            #endif
-            #ifdef NET_HTTP
-            else if (str.startsWith("http test"))
-            {
-                HTTP::SRequest request =
-                {
-                    .method = HTTP_METHOD,
-                    .path = HTTP_PATH,
-                    .query = { { "millis", String(millis()) } }
-                };
-                _http->ProcessRequest(request);
-                Serial.print("Request response code: ");
-                Serial.println(request.responseCode);
-                if (!request.responseBody.isEmpty())
-                {
-                    Serial.println("Response body:");
-                    Serial.println(request.responseBody);
-                }
-            }
-            #endif
-            #endif
-        }
+        //This makes the code easier to read than old solutions however it does have an added response time to any serial inputs.
+        ProcessTask(this);
     }
     #endif
 };
