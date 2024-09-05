@@ -104,18 +104,29 @@ public:
     int Connect()
     {
         if (mqttClient.connected())
+        {
+            #ifdef DEBUG
+            Serial.println("MQTT alive.");
+            #endif
             return true;
+        }
 
         if (!mqttClient.connect(_deviceId, _username, _password))
         {
             int state = mqttClient.state();
-            Serial.println("Failed to connect to MQTT. State: " + state);
+            Serial.print("Failed to connect to MQTT: ");
+            Serial.println(state);
             return state;
         }
 
         for (auto &&topic : _subscriptions)
+        {
             if (!mqttClient.subscribe(topic.first))
-                Serial.println(String("Failed to subscribe to MQTT topic: ") + topic.first);
+            {
+                Serial.print("Failed to subscribe to MQTT topic: ");
+                Serial.println(topic.first);
+            }
+        }
 
         return mqttClient.connected() ? MQTT_CONNECTED : mqttClient.state();
     }
