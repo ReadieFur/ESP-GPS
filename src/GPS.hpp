@@ -19,12 +19,17 @@ private:
         {
             char c = self->_gpsSerial->read();
             self->TinyGps.encode(c);
-            // Serial.write(c); //TODO: For testing only.
+            #ifdef RELAY_SERIAL
+            Serial.write(c);
+            #endif
         }
     }
     
 public:
     TinyGPSPlus TinyGps;
+    #ifdef DEBUG
+    SoftwareSerial** DebugSerial = &_gpsSerial;
+    #endif
 
     GPS(uint8_t rxPin, uint8_t txPin)
     {

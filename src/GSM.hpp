@@ -14,7 +14,7 @@ class GSM
 {
 private:
     const char *_apn, *_pin, *_username, *_password;
-    #ifdef DEBUG
+    #ifdef RELAY_SERIAL
     SoftwareSerial* _rawModemSerial;
     StreamDebugger* _modemSerial;
     #else
@@ -27,11 +27,18 @@ private:
 
 public:
     TinyGsm* Modem;
+    #ifdef DEBUG
+    #ifdef RELAY_SERIAL
+    SoftwareSerial** DebugSerial = &_rawModemSerial;
+    #else
+    SoftwareSerial** DebugSerial = &_modemSerial;
+    #endif
+    #endif
 
     GSM(uint8_t rxPin, uint8_t txPin, const char* apn, const char* pin = "", const char* username = "", const char* password = "")
     : _apn(apn), _pin(pin), _username(username), _password(password)
     {
-        #ifdef DEBUG
+        #ifdef RELAY_SERIAL
         _rawModemSerial = new SoftwareSerial(rxPin, txPin);
         _rawModemSerial->begin(9600);
         _modemSerial = new StreamDebugger(*_rawModemSerial, Serial);
@@ -55,7 +62,7 @@ public:
         Modem->gprsDisconnect();
         delete Modem;
 
-        #ifdef DEBUG
+        #ifdef RELAY_SERIAL
         _rawModemSerial->end();        
         delete _rawModemSerial;
         #else
