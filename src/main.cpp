@@ -51,13 +51,19 @@ void Main()
     gsm = new GSM(MODEM_TX, MODEM_RX, MODEM_APN, MODEM_PIN, MODEM_USERNAME, MODEM_PASSWORD);
     gsm->Connect();
     #if defined(ESP32)
-    gsm->ConfigureAutomaticConnectionCheck(0);
+    gsm->ConfigureAutomaticConnectionCheck(100);
     #endif
 
     #ifdef NET_MQTT
     mqttClient = gsm->CreateClient();
     mqtt = new MQTT(*mqttClient, MQTT_DEVICE_ID, MQTT_BROKER, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD);
     mqtt->Subscribe(MQTT_TOPIC);
+    #if defined(ESP32)
+    mqtt->ConfigureAutomaticConnectionCheck(100);
+    mqtt->ConfigureAutomaticCallbackDispatcher(100);
+    #elif defined(ESP8266)
+    mqttLoop.Callback = [](){ mqtt->Loop(); };
+    #endif
     #endif
 
     #ifdef NET_HTTP
@@ -89,10 +95,9 @@ void Main()
         mqtt->Connect();
         #endif
     };
+    #endif
 
     #ifdef NET_MQTT
-    mqttLoop.Callback = [](){ mqtt->Loop(); };
-    #endif
     #endif
 }
 
