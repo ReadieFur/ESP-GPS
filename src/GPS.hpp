@@ -19,8 +19,9 @@ private:
         {
             char c = self->_gpsSerial->read();
             self->TinyGps.encode(c);
-            #ifdef RELAY_SERIAL
-            Serial.write(c);
+            #ifdef DEBUG
+            if (self->DebugRelaySerial)
+                Serial.write(c);
             #endif
         }
     }
@@ -29,6 +30,7 @@ public:
     TinyGPSPlus TinyGps;
     #ifdef DEBUG
     SoftwareSerial** DebugSerial = &_gpsSerial;
+    bool DebugRelaySerial = false;
     #endif
 
     GPS(uint8_t rxPin, uint8_t txPin)

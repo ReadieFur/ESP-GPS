@@ -85,6 +85,12 @@ void SerialTask(void* args)
         {
             ESP.restart();
         }
+        else if (str.startsWith("gps toggle relay"))
+        {
+            Serial.print("Toggled GPS serial relay to: ");
+            Serial.println(!gps->DebugRelaySerial);
+            gps->DebugRelaySerial = !gps->DebugRelaySerial;
+        }
         else if (str.startsWith("gps location"))
         {
             Serial.println();
@@ -148,8 +154,8 @@ void SerialTask(void* args)
             //Otherwise relay the input to the other serial busses.
             expectedResponsesForSerial++;
 
-            if (gpsSerial != nullptr)
-                gpsSerial->print(str);
+            // if (gpsSerial != nullptr)
+            //     gpsSerial->print(str);
 
             if (gsm != nullptr)
                 gsmSerial->print(str);
@@ -161,17 +167,17 @@ void SerialTask(void* args)
         return;
 
     //Shouldn't be nullptr by the time I get to interact with the terminal but added for safety.
-    if (gpsSerial != nullptr)
-    {
-        if (gpsSerial->available())
-            expectedResponsesForSerial--;
+    // if (gpsSerial != nullptr)
+    // {
+    //     if (gpsSerial->available())
+    //         expectedResponsesForSerial--;
 
-        while (gpsSerial->available())
-        {
-            char c = gpsSerial->read();
-            Serial.write(c);
-        }
-    }
+    //     while (gpsSerial->available())
+    //     {
+    //         char c = gpsSerial->read();
+    //         Serial.write(c);
+    //     }
+    // }
 
     if (gsmSerial != nullptr)
     {
