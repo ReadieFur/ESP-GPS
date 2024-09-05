@@ -92,7 +92,7 @@ public:
             Scheduler::Remove(_validateConnectionTaskId);
 
         //Has to be limited to the ESP32 because the client could be a GSM client, which on the ESP8266 can cause stack overflow errors when dispatched from a timer.
-        _validateConnectionTaskId = Scheduler::Add(connectionCheckInterval, [](void* args) { static_cast<MQTT*>(args)->self->Connect(); }, this);
+        _validateConnectionTaskId = Scheduler::Add(connectionCheckInterval, [](void* args) { static_cast<MQTT*>(args)->Connect(); }, this);
     }
 
     /// @brief Enable task based automatic subscription polling to the server.

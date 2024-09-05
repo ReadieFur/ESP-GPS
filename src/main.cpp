@@ -10,6 +10,7 @@
 #include "Scheduler.hpp"
 #include "GPS.hpp"
 #include "GSM.hpp"
+#include "SerialInterface.hpp"
 
 GPS* gps;
 GSM* gsm;
@@ -18,7 +19,9 @@ GSM* gsm;
 #include "MQTT.hpp"
 TinyGsmClient* mqttClient;
 MQTT* mqtt;
+#if defined(ESP8266)
 TimedLoop mqttLoop(100);
+#endif
 #endif
 
 #ifdef NET_HTTP
@@ -31,173 +34,7 @@ HTTP* http;
 TimedLoop connectionCheckLoop(1000);
 #endif
 
-#ifdef DEBUG
-#include <list>
-#include <queue>
-#include <algorithm>
-ushort expectedResponsesForSerial = 0;
-std::list<char> serialBuffer;
-std::queue<String> serialLoopCommandQueue;
-void SerialTask(void* args)
-{
-    auto gpsSerial = *gps->DebugSerial;
-    auto gsmSerial = *gsm->DebugSerial;
-
-    while (Serial.available())
-    {
-        char c = Serial.read();
-        Serial.write(c);
-        serialBuffer.push_back(c);
-    }
-
-    //Peek for newline character.
-    while (std::find(serialBuffer.begin(), serialBuffer.end(), '\n') != serialBuffer.end())
-    {
-        String str = "";
-        do
-        {
-            char c = serialBuffer.front();
-            serialBuffer.pop_front();
-            str += c;
-
-            if (c == '\n')
-                break;
-        } while (!serialBuffer.empty());
-        
-
-        //Ignore empty strings.
-        bool containsRealCharacter = false;
-        for (auto &&c : str)
-        {
-            containsRealCharacter = isalnum(c);
-            if (containsRealCharacter)
-                break;
-        }
-        if (!containsRealCharacter)
-            continue;
-
-        //Check if serial command is to be intercepted.
-        if (str.startsWith("ping"))
-        {
-            Serial.println("pong");
-        }
-        else if (str.startsWith("reset"))
-        {
-            ESP.restart();
-        }
-        else if (str.startsWith("gps toggle relay"))
-        {
-            Serial.print("Toggled GPS serial relay to: ");
-            Serial.println(!gps->DebugRelaySerial);
-            gps->DebugRelaySerial = !gps->DebugRelaySerial;
-        }
-        else if (str.startsWith("gps location"))
-        {
-            Serial.println();
-            Serial.print("Lat: ");
-            Serial.println(gps->TinyGps.location.lat(), 6);
-            Serial.print("Lng: ");
-            Serial.println(gps->TinyGps.location.lng(), 6);
-        }
-        else if (str.startsWith("gsm connect"))
-        {
-            //Cant run from this timer callback on ESP8266.
-            #if defined(ESP32)
-            gsm->Connect();
-            #else
-            serialLoopCommandQueue.push(str);
-            #endif
-        }
-        #ifdef NET_MQTT
-        else if (str.startsWith("mqtt connect"))
-        {
-            #if defined(ESP32)
-            mqtt->Connect();
-            #else
-            serialLoopCommandQueue.push(str);
-            #endif
-        }
-        else if (str.startsWith("mqtt publish"))
-        {
-            #if defined(ESP32)
-            mqtt->Send(MQTT_TOPIC, str.c_str());
-            #else
-            serialLoopCommandQueue.push(str);
-            #endif
-        }
-        #endif
-        #ifdef NET_HTTP
-        else if (str.startsWith("http test"))
-        {
-            #if defined(ESP32)
-            HTTP::SRequest request =
-            {
-                .method = HTTP_METHOD,
-                .path = HTTP_PATH,
-                .query = { { "millis", String(millis()).c_str() } }
-            };
-            http->ProcessRequest(request);
-            Serial.print("Request response code: ");
-            Serial.println(request.responseCode);
-            if (!request.responseBody.isEmpty())
-            {
-                Serial.println("Response body:");
-                Serial.println(request.responseBody);
-            }
-            #else
-            serialLoopCommandQueue.push(str);
-            #endif
-        }
-        #endif
-        else if (str.startsWith("loop"))
-        {
-            #if defined(ESP8266)
-            serialLoopCommandQueue.push(str);
-            #endif
-        }
-        else
-        {
-            //Otherwise relay the input to the other serial busses.
-            expectedResponsesForSerial++;
-
-            // if (gpsSerial != nullptr)
-            //     gpsSerial->print(str);
-
-            if (gsm != nullptr)
-                gsmSerial->print(str);
-        }
-    }
-
-    //Only read from the other serial busses if we have directly written anything to them. Otherwise leave them to be read by their owning classes.
-    if (expectedResponsesForSerial == 0)
-        return;
-
-    //Shouldn't be nullptr by the time I get to interact with the terminal but added for safety.
-    // if (gpsSerial != nullptr)
-    // {
-    //     if (gpsSerial->available())
-    //         expectedResponsesForSerial--;
-
-    //     while (gpsSerial->available())
-    //     {
-    //         char c = gpsSerial->read();
-    //         Serial.write(c);
-    //     }
-    // }
-
-    if (gsmSerial != nullptr)
-    {
-        if (gpsSerial->available())
-            expectedResponsesForSerial--;
-
-        while (gsmSerial->available())
-        {
-            char c = gsmSerial->read();
-            Serial.print(c);
-        }
-    }
-}
-#endif
+SerialInterface* serialInterface;
 
 void Main()
 {
@@ -208,11 +45,6 @@ void Main()
 
     //This has to be set first before any other objects are initalized as if they write to serial before this the baud is set to something different.
     Serial.begin(9600);
-
-    #ifdef DEBUG
-    // Scheduler::Add(5000, [](void*){ Serial.println("SERIAL_ALIVE_CHECK:" + String(millis() / 1000 - 2)); }); //TODO: Testing only. Just for me to make sure the serial monitor or board hasn't frozen. (Not needed now I have ping/pong).
-    Scheduler::Add(100, SerialTask);
-    #endif
 
     gps = new GPS(GPS_TX, GPS_RX);
 
@@ -232,6 +64,22 @@ void Main()
     httpClient = gsm->CreateClient();
     http = new HTTP(*httpClient, HTTP_ADDRESS, HTTP_PORT);
     #endif
+
+    serialInterface = new SerialInterface(
+        gps,
+        gsm,
+        #ifdef NET_MQTT
+        mqtt,
+        #else
+        nullptr,
+        #endif
+        #ifdef NET_HTTP
+        http
+        #else
+        nullptr
+        #endif
+    );
+    serialInterface->Begin();
 
     #if defined(ESP8266)
     connectionCheckLoop.Callback = []()
@@ -260,62 +108,11 @@ void loop()
     // vPortYield();
     vTaskDelete(NULL);
 #elif defined(ESP8266)
-    #if defined(DEBUG) || true
     connectionCheckLoop.Loop();
     #ifdef NET_MQTT
     mqttLoop.Loop();
     #endif
-    #endif
-
-    #ifdef DEBUG
-    while (!serialLoopCommandQueue.empty())
-    {
-        String str = serialLoopCommandQueue.front();
-        serialLoopCommandQueue.pop();
-        if (str.startsWith("gsm connect"))
-        {
-            gsm->Connect();
-        }
-        #ifdef NET_MQTT
-        else if (str.startsWith("mqtt connect"))
-        {
-            mqtt->Connect();
-        }
-        else if (str.startsWith("mqtt publish"))
-        {
-            bool mqttSendResult = mqtt->Send(MQTT_TOPIC, (String("millis=") + String(millis())).c_str());
-            Serial.println(String("MQTT publish result: ") + String(mqttSendResult));
-        }
-        #endif
-        #ifdef NET_HTTP
-        else if (str.startsWith("http test"))
-        {
-            HTTP::SRequest request =
-            {
-                .method = HTTP_METHOD,
-                .path = HTTP_PATH,
-                .query = { { "millis", String(millis()) } }
-            };
-            http->ProcessRequest(request);
-            Serial.print("Request response code: ");
-            Serial.println(request.responseCode);
-            if (!request.responseBody.isEmpty())
-            {
-                Serial.println("Response body:");
-                Serial.println(request.responseBody);
-            }
-        }
-        #endif
-        else if (str.startsWith("loop"))
-        {
-            connectionCheckLoop.Loop();
-            #ifdef NET_MQTT
-            mqttLoop.Loop();
-            #endif
-        }
-    }
-    #endif
-
+    serialInterface->Loop();
     yield();
 #endif
 }
