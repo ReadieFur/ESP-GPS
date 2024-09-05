@@ -101,6 +101,19 @@ void Main()
     #endif
 }
 
+#if defined(ESP8266)
+void Loop()
+{
+    connectionCheckLoop.Loop();
+    #ifdef NET_MQTT
+    mqttLoop.Loop();
+    #endif
+    serialInterface->Loop();
+    yield();
+}
+#endif
+
+#pragma region Entrypoint stuff
 #ifdef ARDUINO
 void setup()
 {
@@ -109,17 +122,12 @@ void setup()
 
 void loop()
 {
-#if defined(ESP32)
+    #if defined(ESP32)
     // vPortYield();
     vTaskDelete(NULL);
-#elif defined(ESP8266)
-    connectionCheckLoop.Loop();
-    #ifdef NET_MQTT
-    mqttLoop.Loop();
+    #elif defined(ESP8266)
+    Loop();
     #endif
-    serialInterface->Loop();
-    yield();
-#endif
 }
 #else
 extern "C" void app_main()
@@ -128,3 +136,4 @@ extern "C" void app_main()
     //app_main IS allowed to return as per the ESP32 documentation (other FreeRTOS tasks will continue to run).
 }
 #endif
+#pragma endregion
