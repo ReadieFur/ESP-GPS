@@ -10,6 +10,7 @@ class MQTT
 {
 private:
     static uint32_t _lastReconnectAttempt;
+    static const char* _subscribeTopic;
 
     static void Callback(char* topic, byte* payload, uint len)
     {
@@ -26,7 +27,7 @@ private:
         SerialMon.print(MQTT_BROKER);
 
         //Connect to MQTT broker.
-        bool status = mqtt.connect(MQTT_CLIENT_ID, MQTT_USERNAME, MQTT_PASSWORD);
+        bool status = Mqtt.connect(MQTT_CLIENT_ID, MQTT_USERNAME, MQTT_PASSWORD);
         if (status == false)
         {
             SerialMon.println(" fail");
@@ -34,27 +35,28 @@ private:
         }
         SerialMon.println(" success");
 
-        mqtt.publish(MQTT_TOPIC, "GsmClientTest started");
-        mqtt.subscribe(MQTT_TOPIC);
+        // Mqtt.publish(MQTT_TOPIC, "Connected");
+        Mqtt.subscribe(_subscribeTopic);
 
-        return mqtt.connected();
+        return Mqtt.connected();
     }
 
 public:
-    static PubSubClient mqtt;
+    static PubSubClient Mqtt;
+    static const char* PublishTopic;
 
     static void Init()
     {
         //MQTT broker setup.
-        mqtt.setServer(MQTT_BROKER, MQTT_PORT);
-        mqtt.setCallback(Callback);
+        Mqtt.setServer(MQTT_BROKER, MQTT_PORT);
+        Mqtt.setCallback(Callback);
     }
 
     static bool Loop()
     {
-        if (!mqtt.connected())
+        if (!Mqtt.connected())
         {
-            DBG("MQTT not connected.");
+            SerialMon.println("MQTT not connected.");
             // SerialMon.println("MQTT not connected.");
             //Reconnect every x milliseconds.
             uint32_t now = millis();
@@ -68,11 +70,13 @@ public:
             return false;
         }
 
-        mqtt.loop();
+        Mqtt.loop();
 
         return true;
     }
 };
 
-PubSubClient MQTT::mqtt(GSM::Client);
 uint32_t MQTT::_lastReconnectAttempt = 0;
+const char* MQTT::_subscribeTopic = MQTT_TOPIC "/" MQTT_CLIENT_ID "/api";
+PubSubClient MQTT::Mqtt(GSM::Client);
+const char* MQTT::PublishTopic = MQTT_TOPIC "/" MQTT_CLIENT_ID "/data";

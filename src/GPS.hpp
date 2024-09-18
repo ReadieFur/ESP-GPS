@@ -8,8 +8,6 @@
 class GPS
 {
 private:
-    static TinyGPSPlus Gps;
-
     static void DisplayInfo()
     {
         SerialMon.print("Location: ");
@@ -69,6 +67,8 @@ private:
     }
 
 public:
+    static TinyGPSPlus Gps;
+
     static void Init()
     {
         SerialGPS.begin(9600, SERIAL_8N1, GPS_RX, GPS_TX);
@@ -82,8 +82,13 @@ public:
             #ifdef DUMP_GPS_COMMANDS
             SerialMon.write(c);
             #endif
-            if (Gps.encode(c))
+            bool encodeResult = Gps.encode(c);
+            if (encodeResult)
+            {
+                #ifdef DUMP_GPS_DATA
                 DisplayInfo();
+                #endif
+            }
         }
     }
 };
