@@ -19,6 +19,8 @@ private:
         SerialMon.print("]: ");
         SerialMon.write(payload, len);
         SerialMon.println();
+
+        //TODO: API.
     }
 
     static bool Connect()

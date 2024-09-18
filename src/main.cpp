@@ -7,6 +7,8 @@
 #include "MQTT.hpp"
 #include "Publish.hpp"
 
+short retryAttempts = 0;
+
 void setup()
 {
     SerialMon.begin(115200);
@@ -32,17 +34,30 @@ void loop()
 
     Battery::Loop();
     GPS::Loop();
-    if (!GSM::Loop())
+
+    //If we fail upon first boot, retry a few times.
+    bool connectFailed = true;
+    do
     {
-        delay(500); //TODO: Set this to the update interval.
+        if (!GSM::Loop() || !MQTT::Loop())
+        {
+            delay(100);
+            continue;
+        }
+
+        connectFailed = false;
+    }
+    while (retryAttempts != -1 && connectFailed && retryAttempts < 5);
+    if (connectFailed)
+    {
+        int sleepDuration = Battery::GetSleepDuration() / 2;
+        Serial.printf("Fail, sleeping for: %ims\n", sleepDuration);
+        Battery::LightSleep(sleepDuration);
         return;
     }
-    if (!MQTT::Loop())
-    {
-        delay(500); //TODO: Set this to the update interval.
-        return;
-    }
+    
     Publish::Loop();
 
-    delay(500); //TODO: Set this to the update interval.
+    Serial.printf("Success, sleeping for: %ims\n", Battery::GetSleepDuration());
+    Battery::LightSleep(Battery::GetSleepDuration());
 }

@@ -76,19 +76,25 @@ public:
 
     static void Loop()
     {
-        while (SerialGPS.available())
+        //Do this a couple of times so we don't miss anything.
+        for (size_t i = 0; i < 3; i++)
         {
-            int c = SerialGPS.read();
-            #ifdef DUMP_GPS_COMMANDS
-            SerialMon.write(c);
-            #endif
-            bool encodeResult = Gps.encode(c);
-            if (encodeResult)
+            while (SerialGPS.available())
             {
-                #ifdef DUMP_GPS_DATA
-                DisplayInfo();
+                int c = SerialGPS.read();
+                #ifdef DUMP_GPS_COMMANDS
+                SerialMon.write(c);
                 #endif
+                bool encodeResult = Gps.encode(c);
+                if (encodeResult)
+                {
+                    #ifdef DUMP_GPS_DATA
+                    DisplayInfo();
+                    #endif
+                }
             }
+
+            delay(50);
         }
     }
 };

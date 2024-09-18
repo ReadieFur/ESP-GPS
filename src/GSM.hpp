@@ -100,6 +100,8 @@ public:
 
     static bool Loop()
     {
+        Modem.sleepEnable(false);
+
         //Make sure we're still registered on the network.
         if (Modem.isNetworkConnected())
             return true;

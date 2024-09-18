@@ -2,6 +2,7 @@
 
 #include <map>
 #include "GPS.hpp"
+#include "Battery.hpp"
 
 class Publish
 {
@@ -96,13 +97,8 @@ public:
         //     data.insert({"hdop_age", String(GPS::Gps.satellites.age())});
         // }
 
-        // uint8_t batSoc;
-        // int8_t batPct;
-        // uint16_t batVlt;
-        // GSM::Modem.getBattStats(batSoc, batPct, batVlt);
-        // data.insert({"bat_soc", String(batSoc)});
-        // data.insert({"bat_pct", String(batPct)});
-        // data.insert({"bat_vlt", String(batVlt)});
+        data.insert({"bat_vlt", String(Battery::GetVoltage())});
+        data.insert({"bat_state", String(Battery::State)});
 
         // data.insert({"gsm_op", GSM::Modem.getOperator()});
         // data.insert({"gsm_rssi", String(GSM::Modem.getSignalQuality())});
