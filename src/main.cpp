@@ -32,9 +32,17 @@ void loop()
 
     Battery::Loop();
     GPS::Loop();
-    GSM::Loop();
-    MQTT::Loop();
+    if (!GSM::Loop())
+    {
+        delay(500); //TODO: Set this to the update interval.
+        return;
+    }
+    if (!MQTT::Loop())
+    {
+        delay(500); //TODO: Set this to the update interval.
+        return;
+    }
     Publish::Loop();
 
-    delay(1);
+    delay(500); //TODO: Set this to the update interval.
 }

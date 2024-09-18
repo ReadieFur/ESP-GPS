@@ -98,41 +98,41 @@ public:
         #endif
     }
 
-    static void Loop()
+    static bool Loop()
     {
         //Make sure we're still registered on the network.
-        if (!Modem.isNetworkConnected())
+        if (Modem.isNetworkConnected())
+            return true;
+        
+        SerialMon.print("Network disconnected, reconnecting...");
+        if (!Modem.waitForNetwork(180000L, true))
         {
-            SerialMon.println("Network disconnected");
-            if (!Modem.waitForNetwork(180000L, true))
-            {
-                SerialMon.println(" fail");
-                delay(10000);
-                return;
-            }
-            if (Modem.isNetworkConnected())
-            {
-                SerialMon.println("Network re-connected");
-            }
-
-            #if TINY_GSM_USE_GPRS
-            //And make sure GPRS/EPS is still connected.
-            if (!Modem.isGprsConnected())
-            {
-                SerialMon.println("GPRS disconnected!");
-                SerialMon.print("Connecting to ");
-                SerialMon.print(MODEM_APN);
-                if (!Modem.gprsConnect(MODEM_APN, MODEM_USERNAME, MODEM_PASSWORD))
-                {
-                    SerialMon.println(" fail");
-                    delay(10000);
-                    return;
-                }
-                if (Modem.isGprsConnected())
-                    SerialMon.println("GPRS reconnected");
-            }
-            #endif
+            SerialMon.println(" fail");
+            // delay(10000);
+            return false;
         }
+        if (Modem.isNetworkConnected())
+        {
+            SerialMon.println(" success");
+        }
+
+        //And make sure GPRS/EPS is still connected.
+        if (Modem.isGprsConnected())
+            return true;
+        
+        SerialMon.println("GPRS disconnected!");
+        SerialMon.print("Connecting to ");
+        SerialMon.print(MODEM_APN);
+        if (!Modem.gprsConnect(MODEM_APN, MODEM_USERNAME, MODEM_PASSWORD))
+        {
+            SerialMon.println(" fail");
+            // delay(10000);
+            return false;
+        }
+        if (Modem.isGprsConnected())
+            SerialMon.println("GPRS reconnected");
+
+        return true;
     }
 };
 

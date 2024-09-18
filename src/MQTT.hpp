@@ -50,7 +50,7 @@ public:
         mqtt.setCallback(Callback);
     }
 
-    static void Loop()
+    static bool Loop()
     {
         if (!mqtt.connected())
         {
@@ -65,10 +65,12 @@ public:
                     _lastReconnectAttempt = 0;
             }
             delay(100);
-            return;
+            return false;
         }
 
         mqtt.loop();
+
+        return true;
     }
 };
 
