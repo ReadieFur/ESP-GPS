@@ -42,12 +42,14 @@ void loop()
         if (!GSM::Loop() || !MQTT::Loop())
         {
             delay(100);
+            retryAttempts++;
             continue;
         }
 
         connectFailed = false;
     }
-    while (retryAttempts != -1 && connectFailed && retryAttempts < 5);
+    while (retryAttempts != -1 && connectFailed && retryAttempts < 10);
+    retryAttempts = -1;
     if (connectFailed)
     {
         int sleepDuration = Battery::GetSleepDuration() / 2;
