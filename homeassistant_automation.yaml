@@ -11,7 +11,7 @@ action:
         - "{{ trigger.payload_json.loc_lng }}"
       attributes:
         gps_accuracy: >-
-          {{ [0, 10, 3, 1, 0.2, 0.5, 100, 1000,
+          {{ [0, 20, 6, 2, 0.5, 1, 150, 1500,
           2000][trigger.payload_json.loc_quality] }}
         altitude: "{{ trigger.payload_json.alt }}m"
         battery: "{{ trigger.payload_json.bat_vlt }}mV"
@@ -20,8 +20,7 @@ action:
           'Manual', 'Simulated'][trigger.payload_json.loc_quality] }}
         last_seen: >
           {{ (trigger.payload_json.date | string)[4:6] }}-{{
-          (trigger.payload_json.date | string)[2:4] }}-{{
-          (trigger.payload_json.date | string)[:2] }}T{{
-          (trigger.payload_json.time | string)[:2] }}:{{
-          (trigger.payload_json.time | string)[2:4] }}:{{
-          (trigger.payload_json.time | string)[4:6] }}Z
+          (trigger.payload_json.date | string)[2:4] }}-{{ (trigger.payload_json.date
+          | string)[:2] }}T{{ (trigger.payload_json.time | string)[:2] }}:{{
+          (trigger.payload_json.time | string)[2:4] }}:{{ (trigger.payload_json.time
+          | string)[4:6] }}Z
