@@ -15,6 +15,7 @@ private:
 
     static void DeepSleep(uint32_t ms)
     {
+        //TODO: Turn off the GPS module.
         GSM::Modem.poweroff();
         esp_sleep_enable_timer_wakeup(ms * 1000);
         esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
@@ -118,6 +119,7 @@ public:
 
     static void LightSleep(uint32_t ms)
     {
+        //TODO: Put the GPS module to sleep.
         GSM::Modem.sleepEnable(true);
         esp_sleep_enable_timer_wakeup(ms * 1000);
         esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
