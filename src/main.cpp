@@ -6,6 +6,8 @@
 #include "TimedLoop.hpp"
 #endif
 #include "Config.h"
+#include "Boards.h"
+#include "CustomBoard.h"
 #include "Scheduler.hpp"
 #include "GPS.hpp"
 #include "GSM.hpp"
@@ -266,7 +268,7 @@ void Main()
     serialInterface->Begin();
 
     #if defined(ESP32)
-    statusUpdateCallbackId = Scheduler::Add(SEND_INTERVAL, UpdateCallback);
+    statusUpdateCallbackId = Scheduler::Add(SEND_INTERVAL, StatusUpdateCallback);
     #elif defined(ESP8266)
     // statusUpdateCallbackLoop = TimedLoop<void>(SEND_INTERVAL, [](){ StatusUpdateCallback(nullptr); });
     statusUpdateCallbackLoop.Callback = [](){ StatusUpdateCallback(nullptr); };
