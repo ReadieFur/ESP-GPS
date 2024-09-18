@@ -11,6 +11,7 @@ class Publish
 private:
     static bool GetGsmLocation(float& latitude, float& longitude, int& altitude)
     {
+        //TODO: Possibly use the gsm_rssi to improve/decrease the radius the discovered value could possibly fall under.
         String gsmLocation = GSM::Modem.getGsmLocation();
         
         int firstComma = gsmLocation.indexOf(',');
@@ -57,7 +58,7 @@ public:
 
             data.insert({"loc_lat", lat});
             data.insert({"loc_lng", lng});
-            data.insert({"loc_quality", 6}); //6 means estimated location.
+            data.insert({"loc_quality", 8}); //See TinyGPSLocation::Quality.
             data.insert({"loc_age", GPS::Gps.location.age()});
             data.insert({"alt", alt});
             data.insert({"alt_age", GPS::Gps.altitude.age()});
