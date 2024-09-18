@@ -11,8 +11,6 @@
 class Battery
 {
 private:
-    static uint32_t _voltageInterval;
-
     static void DeepSleep(uint32_t ms)
     {
         //TODO: Turn off the GPS module.
@@ -49,12 +47,6 @@ public:
 
     static void Loop()
     {
-        if (millis() < _voltageInterval)
-            return;
-        
-        //Check the battery voltage every x milliseconds.
-        _voltageInterval = millis() + 5000; //TODO: Change this to the update interval.
-
         uint32_t batteryVoltageMv = GetVoltage();
         //If the battery level is lower than 3.6V, the system will continue to sleep and wake up after x period of time continue testing.
         if (batteryVoltageMv < BATTERY_CRIT_VOLTAGE)
@@ -127,5 +119,4 @@ public:
     }
 };
 
-uint32_t Battery::_voltageInterval = 0;
 Battery::EState Battery::State = Battery::EState::Discharging;
