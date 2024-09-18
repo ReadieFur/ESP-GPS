@@ -41,7 +41,11 @@ public:
         {
             data.insert({"loc_lat", GPS::Gps.location.lat()});
             data.insert({"loc_lng", GPS::Gps.location.lng()});
-            data.insert({"loc_quality", GPS::Gps.location.FixQuality()});
+            // data.insert({"loc_quality", GPS::Gps.location.FixQuality()});
+            // SerialMon.printf("FixMode:%i\n", GPS::Gps.location.FixMode());
+            //From my tests the FixQuality and FixMode are reading wrong on this device, so I will manually send the quality as GPS mode for now.
+            //TODO: Figure out why the above isn't working correctly.
+            data.insert({"loc_quality", 1});
             data.insert({"loc_age", GPS::Gps.location.age()});
         }
         else if (GPS::Gps.location.age() > 60 * 1000) //If the GPS location hasn't been updated in x multiple of the update interval, send the estimated location from the modem.
@@ -62,6 +66,11 @@ public:
             data.insert({"loc_age", GPS::Gps.location.age()});
             data.insert({"alt", alt});
             data.insert({"alt_age", GPS::Gps.altitude.age()});
+        }
+        else
+        {
+            SerialMon.println("Failed to send data. Reason: GPS location not updated.");
+            return false;
         }
 
         if (GPS::Gps.date.isValid())
@@ -112,10 +121,7 @@ public:
             //std::visit automatically casts the variant type back to it's original data type.
             std::visit([&](auto&& arg) { json[kvp.first] = arg; }, kvp.second);
 
-        #ifdef DUMP_PUBLISH_DATA
-        SerialMon.println("Sending data:");
-        serializeJsonPretty(json, SerialMon);
-        #endif
+        SerialMon.println("Sending data...");
 
         String mqttPayload;
         serializeJson(json, mqttPayload);

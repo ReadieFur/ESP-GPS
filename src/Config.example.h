@@ -20,5 +20,3 @@
 //Developer options.
 #define DUMP_AT_COMMANDS
 #define DUMP_GPS_COMMANDS
-#define DUMP_GPS_DATA
-#define DUMP_PUBLISH_DATA

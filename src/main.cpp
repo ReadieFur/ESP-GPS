@@ -22,12 +22,12 @@ void setup()
 void loop()
 {
     #pragma region SerialMon
-    // while (SerialMon.available())
-    // {
-    //     int c = SerialMon.read();
-    //     SerialMon.write(c); //Relay the character back to the terminal (required so you can see what you are typing).
-    //     SerialAT.write(c);
-    // }
+    while (SerialMon.available())
+    {
+        int c = SerialMon.read();
+        SerialMon.write(c); //Relay the character back to the terminal (required so you can see what you are typing).
+        // SerialAT.write(c);
+    }
     // while (SerialAT.available())
     //     SerialMon.write(SerialAT.read());
     #pragma endregion
@@ -58,7 +58,13 @@ void loop()
         return;
     }
     
-    Publish::Loop();
+    if (!Publish::Loop())
+    {
+        int sleepDuration = Battery::GetSleepDuration() / 2;
+        Serial.printf("Fail, sleeping for: %ims\n", sleepDuration);
+        Battery::LightSleep(sleepDuration);
+        return;
+    }
 
     Serial.printf("Success, sleeping for: %ims\n", Battery::GetSleepDuration());
     Battery::LightSleep(Battery::GetSleepDuration());

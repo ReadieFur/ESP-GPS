@@ -39,10 +39,10 @@ public:
         //If the battery level is lower than 3.6V, the system will continue to sleep and wake up after one hour to continue testing.
         if (batteryVoltageMv < BATTERY_CRIT_VOLTAGE)
         {
-            SerialMon.printf("Battery voltage is too low ,%u mv, entering sleep mode\n", batteryVoltageMv);
+            SerialMon.printf("Battery voltage is too low ,%umv, entering sleep mode\n", batteryVoltageMv);
             DeepSleep(BATTERY_CRIT_SLEEP);
         }
-        SerialMon.printf("Battery voltage is %u mv\n", batteryVoltageMv);
+        SerialMon.printf("Battery voltage is %umv\n", batteryVoltageMv);
     }
 
     static void Loop()
@@ -51,7 +51,7 @@ public:
         //If the battery level is lower than 3.6V, the system will continue to sleep and wake up after x period of time continue testing.
         if (batteryVoltageMv < BATTERY_CRIT_VOLTAGE)
         {
-            SerialMon.printf("Battery voltage is low ,%u mv, entering sleep mode\n", batteryVoltageMv);
+            SerialMon.printf("Battery voltage is low ,%umv, entering sleep mode\n", batteryVoltageMv);
             DeepSleep(BATTERY_CRIT_SLEEP);
         }
         else if (batteryVoltageMv < BATTERY_LOW_VOLTAGE)
