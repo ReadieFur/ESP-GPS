@@ -8,6 +8,7 @@
 class GPS
 {
 public:
+    //TODO: Average data.
     static TinyGPSPlus Gps;
 
     static void Init()
