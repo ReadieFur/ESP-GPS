@@ -37,14 +37,14 @@ private:
         char* msg = new char[len + 1];
         if (msg == nullptr)
         {
-            Serial.println("Dropping MQTT message: Failed to allocate message buffer.");
+            Serial.println(F("Dropping MQTT message: Failed to allocate message buffer."));
             return;
         }
         memcpy(msg, message, len);
         msg[len] = '\0';
 
         #ifdef LOG_CALLBACKS
-        Serial.println(String("MQTT message received at topic '") + String(topic) + String("':\n") + String(msg));
+        Serial.println(F((String("MQTT message received at topic '") + String(topic) + String("':\n") + String(msg)).c_str()));
 
         if (callbacks == _subscriptions.end())
             return;
@@ -119,37 +119,37 @@ public:
         if (mqttClient.connected())
         {
             #ifdef DEBUG
-            Serial.println("MQTT alive.");
+            Serial.println(F("MQTT alive."));
             #endif
             return true;
         }
 
         #ifdef DEBUG
-        Serial.println("Connecting to MQTT...");
+        Serial.println(F("Connecting to MQTT..."));
         #endif
 
         if (!mqttClient.connect(_deviceId, _username, _password))
         {
             int state = mqttClient.state();
-            Serial.print("Failed to connect to MQTT: ");
+            Serial.print(F("Failed to connect to MQTT: "));
             Serial.println(state);
             return state;
         }
 
         #ifdef DEBUG
-        Serial.println("Connected to MQTT.");
+        Serial.println(F("Connected to MQTT."));
         #endif
 
         for (auto &&topic : _subscriptions)
         {
             #ifdef DEBUG
-            Serial.println(String("Resubscribing to topic: ") + String(topic.first));
+            Serial.println(F((String("Resubscribing to topic: ") + String(topic.first)).c_str()));
             #endif
 
             if (!mqttClient.subscribe(topic.first))
             {
-                // Serial.print("Failed to subscribe to MQTT topic: ");
-                // Serial.println(topic.first);
+                // Serial.print(F("Failed to subscribe to MQTT topic: "));
+                // Serial.println(F(topic.first));
             }
         }
 
@@ -167,7 +167,7 @@ public:
         }
 
         #ifdef DEBUG
-        Serial.println(String("Subscribing to topic: ") + String(topic));
+        Serial.println(F((String("Subscribing to topic: ") + String(topic)).c_str()));
         #endif
 
         //This creates a new entry when written to if the key does not exist.
@@ -176,7 +176,7 @@ public:
         if (!mqttClient.subscribe(topic))
         {
             //Ignore subscription errors for now, they only occur if MQTT is not connected and the reconnect method will restore this failed subscription.
-            // Serial.println(String("Failed to subscribe to MQTT topic: ") + topic);
+            // Serial.println(F((String("Failed to subscribe to MQTT topic: ") + topic).c_str()));
             // return false;
         }
 

@@ -79,8 +79,8 @@ public:
         String path = request.path + BuildQueryString(request.query);
 
         #ifdef DEBUG
-        Serial.print("Sending request to: ");
-        Serial.println(path);
+        Serial.print(F("Sending request to: "));
+        Serial.println(F(path.c_str()));
         #endif
 
         switch (request.method)

@@ -107,13 +107,13 @@ public:
         {
             if (!Modem->restart(_pin))
             {
-                Serial.println("Failed to restart modem.");
+                Serial.println(F("Failed to restart modem."));
                 return 1;
             }
             
             if (!Modem->waitForNetwork(timeout, true))
             {
-                Serial.println("Modem failed to connect to network after timeout.");
+                Serial.println(F("Modem failed to connect to network after timeout."));
                 return 1;
             }
         }
@@ -124,20 +124,20 @@ public:
 
             if (!Modem->gprsConnect(_apn, _username, _password))
             {
-                Serial.println("Modem failed to connect to GPRS network.");
+                Serial.println(F("Modem failed to connect to GPRS network."));
                 return 2;
             }
         }
 
         if (reconnected)
         {
-            Serial.println(
+            Serial.println(F((
                 String("GPRS connection restored:")
                 + String("\nSignal Strength: ") + String(Modem->getSignalQuality())
                 // + String("\nProvider: ") + String(Modem->getProvider())
                 + String("\nOperator: ") + String(Modem->getOperator())
                 + String("\nIP: ") + Modem->localIP().toString()
-            );
+            ).c_str()));
         }
         else
         {
@@ -153,7 +153,7 @@ public:
     {
         if (_clients.size() >= TINY_GSM_MUX_COUNT)
         {
-            Serial.println("Max number of GSM clients already instantiated.");
+            Serial.println(F("Max number of GSM clients already instantiated."));
             return nullptr;
         }
 
@@ -170,7 +170,7 @@ public:
         TinyGsmClient* client = new TinyGsmClient(*Modem, firstFreeId);
         if (client == nullptr)
         {
-            Serial.println("Failed to create GSM client object.");
+            Serial.println(F("Failed to create GSM client object."));
             return nullptr;
         }
 

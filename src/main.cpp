@@ -44,7 +44,7 @@ TimedLoop connectionCheckLoop(1000);
 void StatusUpdateCallback(void*)
 {
     #ifdef DEBUG
-    Serial.println("Preparing to send data...");
+    Serial.println(F("Preparing to send data..."));
     #endif
 
     std::map<String, String> data;
@@ -115,14 +115,20 @@ void StatusUpdateCallback(void*)
     }
     #endif
 
+    #if defined(SEND_BATTERY_SOC) || defined(SEND_BATTERY_PERCENTAGE) || defined(SEND_BATTERY_VOLTAGE)
+    uint8_t batSoc;
+    int8_t batPct;
+    uint16_t batVlt;
+    gsm->Modem->getBattStats(batSoc, batPct, batVlt);
     #ifdef SEND_BATTERY_SOC
-    data.insert({"bat_soc", String(gsm->Modem->getBattChargeState())});
+    data.insert({"bat_soc", String(batSoc)});
     #endif
     #ifdef SEND_BATTERY_PERCENTAGE
-    data.insert({"bat_pct", String(gsm->Modem->getBattPercent())});
+    data.insert({"bat_pct", String(batPct)});
     #endif
     #ifdef SEND_BATTERY_VOLTAGE
-    data.insert({"bat_vlt", String(gsm->Modem->getBattVoltage())});
+    data.insert({"bat_vlt", String(batVlt)});
+    #endif
     #endif
 
     #ifdef SEND_GSM_OPERATOR
@@ -155,8 +161,8 @@ void StatusUpdateCallback(void*)
         logMessage += kvp.second;
         logMessage += '\n';
     }
-    Serial.println("Sending data:");
-    Serial.print(logMessage);
+    Serial.println(F("Sending data:"));
+    Serial.print(F(logMessage.c_str()));
     #endif
 
     #ifdef NET_MQTT
@@ -173,7 +179,7 @@ void StatusUpdateCallback(void*)
     
     if (!mqtt->Send(MQTT_TOPIC, mqttMessage.c_str()))
     {
-        Serial.print("Failed to send MQTT message: ");
+        Serial.print(F("Failed to send MQTT message: "));
         Serial.println(mqtt->mqttClient.state());
     }
     #endif
@@ -207,7 +213,7 @@ void StatusUpdateCallback(void*)
 
     http->ProcessRequest(httpRequest);
     if (httpRequest.responseCode < 200 || httpRequest.responseCode > 300)
-        Serial.println("Failed to send HTTP request.");
+        Serial.println(F("Failed to send HTTP request."));
     #endif
 }
 
@@ -223,7 +229,7 @@ void Main()
 
     #ifdef DEBUG
     //This is in place just for me to make sure the serial hasn't lost connection or the device has stalled.
-    Scheduler::Add(5000, [](void*){ Serial.println(String("SERIAL_ALIVE_CHECK:") + String((millis() / 1000) - 2)); });
+    Scheduler::Add(5000, [](void*){ Serial.println(F((String("SERIAL_ALIVE_CHECK:") + String((millis() / 1000) - 2)).c_str())); });
     #endif
 
     gps = new GPS(GPS_TX, GPS_RX);

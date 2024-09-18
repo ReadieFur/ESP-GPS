@@ -79,7 +79,7 @@ private:
             //Check if serial command is to be intercepted.
             if (str.startsWith("ping"))
             {
-                Serial.println("pong");
+                Serial.println(F("pong"));
             }
             else if (str.startsWith("reset"))
             {
@@ -88,16 +88,15 @@ private:
             #ifdef DEBUG
             else if (str.startsWith("gps toggle relay"))
             {
-                Serial.print("Toggled GPS serial relay to: ");
+                Serial.print(F("Toggled GPS serial relay to: "));
                 Serial.println(!self->_gps->DebugRelaySerial);
                 self->_gps->DebugRelaySerial = !self->_gps->DebugRelaySerial;
             }
             else if (str.startsWith("gps location"))
             {
-                Serial.println();
-                Serial.print("Lat: ");
+                Serial.print(F("\nLat: "));
                 Serial.println(self->_gps->TinyGps.location.lat(), 6);
-                Serial.print("Lng: ");
+                Serial.print(F("Lng: "));
                 Serial.println(self->_gps->TinyGps.location.lng(), 6);
             }
             else if (str.startsWith("gsm connect"))
@@ -124,11 +123,11 @@ private:
                     .query = { { "millis", String(millis()).c_str() } }
                 };
                 self->_http->ProcessRequest(request);
-                Serial.print("Request response code: ");
+                Serial.print(F("Request response code: "));
                 Serial.println(request.responseCode);
                 if (!request.responseBody.isEmpty())
                 {
-                    Serial.println("Response body:");
+                    Serial.println(F("Response body:"));
                     Serial.println(request.responseBody);
                 }
             }
@@ -162,7 +161,7 @@ private:
             while (gsmSerial->available())
             {
                 char c = gsmSerial->read();
-                Serial.print(c);
+                Serial.print(F(c));
             }
         }
         #endif
