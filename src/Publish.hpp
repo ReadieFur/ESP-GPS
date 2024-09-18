@@ -1,6 +1,8 @@
 #pragma once
 
 #include <map>
+#include <variant>
+#include <ArduinoJson.h>
 #include "GPS.hpp"
 #include "Battery.hpp"
 
@@ -31,15 +33,15 @@ public:
     {
         SerialMon.println("Preparing to send data...");
 
-        std::map<String, String> data;
+        std::map<String, std::variant<String, int, uint, bool, long, ulong, double>> data;
         bool sendingEstimatedData = false;
 
         if (GPS::Gps.location.isUpdated())
         {
-            data.insert({"loc_lat", String(GPS::Gps.location.lat())});
-            data.insert({"loc_lng", String(GPS::Gps.location.lng())});
-            data.insert({"loc_quality", String(GPS::Gps.location.FixQuality())});
-            data.insert({"loc_age", String(GPS::Gps.location.age())});
+            data.insert({"loc_lat", GPS::Gps.location.lat()});
+            data.insert({"loc_lng", GPS::Gps.location.lng()});
+            data.insert({"loc_quality", GPS::Gps.location.FixQuality()});
+            data.insert({"loc_age", GPS::Gps.location.age()});
         }
         else if (GPS::Gps.location.age() > 60 * 1000) //If the GPS location hasn't been updated in x multiple of the update interval, send the estimated location from the modem.
         {
@@ -53,72 +55,70 @@ public:
                 return false;
             }
 
-            data.insert({"loc_lat", String(lat)});
-            data.insert({"loc_lng", String(lng)});
-            data.insert({"loc_quality", String('6')}); //6 means estimated location.
-            data.insert({"loc_age", String(GPS::Gps.location.age())});
-            data.insert({"alt", String(alt)});
-            data.insert({"alt_age", String(GPS::Gps.altitude.age())});
+            data.insert({"loc_lat", lat});
+            data.insert({"loc_lng", lng});
+            data.insert({"loc_quality", 6}); //6 means estimated location.
+            data.insert({"loc_age", GPS::Gps.location.age()});
+            data.insert({"alt", alt});
+            data.insert({"alt_age", GPS::Gps.altitude.age()});
         }
 
         if (GPS::Gps.date.isValid())
-            data.insert({"date", String(GPS::Gps.date.value())});
+            data.insert({"date", GPS::Gps.date.value()});
 
         if (GPS::Gps.time.isValid())
-            data.insert({"time", String(GPS::Gps.time.value())});
+            data.insert({"time", GPS::Gps.time.value()});
 
         // if (GPS::Gps.speed.isValid())
         // {
-        //     data.insert({"mps", String(GPS::Gps.speed.mps())});
-        //     data.insert({"mps_age", String(GPS::Gps.speed.age())});
+        //     data.insert({"mps", GPS::Gps.speed.mps()});
+        //     data.insert({"mps_age", GPS::Gps.speed.age()});
         // }
 
         // if (GPS::Gps.course.isValid())
         // {
-        //     data.insert({"deg", String(GPS::Gps.course.deg())});
-        //     data.insert({"deg_age", String(GPS::Gps.course.age())});
+        //     data.insert({"deg", GPS::Gps.course.deg())});
+        //     data.insert({"deg_age", GPS::Gps.course.age()});
         // }
 
         if (!sendingEstimatedData && GPS::Gps.altitude.isValid())
         {
-            data.insert({"alt", String(GPS::Gps.altitude.meters())});
-            data.insert({"alt_age", String(GPS::Gps.altitude.age())});
+            data.insert({"alt", GPS::Gps.altitude.meters()});
+            data.insert({"alt_age", GPS::Gps.altitude.age()});
         }
 
         // if (GPS::Gps.satellites.isValid())
         // {
-        //     data.insert({"sat", String(GPS::Gps.satellites.value())});
-        //     data.insert({"sat_age", String(GPS::Gps.satellites.age())});
+        //     data.insert({"sat", GPS::Gps.satellites.value()});
+        //     data.insert({"sat_age", GPS::Gps.satellites.age()});
         // }
 
         // if (GPS::Gps.hdop.isValid())
         // {
-        //     data.insert({"hdop", String(GPS::Gps.hdop.hdop())});
-        //     data.insert({"hdop_age", String(GPS::Gps.satellites.age())});
+        //     data.insert({"hdop", GPS::Gps.hdop.hdop()});
+        //     data.insert({"hdop_age", GPS::Gps.satellites.age()});
         // }
 
-        data.insert({"bat_vlt", String(Battery::GetVoltage())});
-        data.insert({"bat_state", String(Battery::State)});
+        data.insert({"bat_vlt", Battery::GetVoltage()});
+        data.insert({"bat_state", Battery::State});
 
         // data.insert({"gsm_op", GSM::Modem.getOperator()});
-        // data.insert({"gsm_rssi", String(GSM::Modem.getSignalQuality())});
+        // data.insert({"gsm_rssi", GSM::Modem.getSignalQuality()});
         // data.insert({"gsm_ip", GSM::Modem.getLocalIP()});
 
-        String message;
+        JsonDocument json;
         for (auto &&kvp : data)
-        {
-            message += kvp.first;
-            message += '=';
-            message += kvp.second;
-            message += '\n';
-        }
+            //std::visit automatically casts the variant type back to it's original data type.
+            std::visit([&](auto&& arg) { json[kvp.first] = arg; }, kvp.second);
 
         #ifdef DUMP_PUBLISH_DATA
         SerialMon.println("Sending data:");
-        SerialMon.print(message.c_str());
+        serializeJsonPretty(json, SerialMon);
         #endif
 
-        if (!MQTT::Mqtt.publish(MQTT::PublishTopic, message.c_str()))
+        String mqttPayload;
+        serializeJson(json, mqttPayload);
+        if (!MQTT::Mqtt.publish(MQTT::PublishTopic, mqttPayload.c_str()))
         {
             SerialMon.print("Failed to send MQTT message: ");
             SerialMon.println(MQTT::Mqtt.state());
