@@ -1,362 +1,343 @@
 #include <Arduino.h>
-#include "Board.h"
+#if defined(ESP32)
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#elif defined(ESP8266)
+#include "TimedLoop.hpp"
+#endif
 #include "Config.h"
-#include <TinyGPS++.h>
-#include <TinyGsmClient.h>
-#include <PubSubClient.h>
-#include <vector>
-#include <algorithm>
-#include <numeric>
+#include "Boards.h"
+#include "CustomBoard.h"
+#include "Scheduler.hpp"
+#include "GPS.hpp"
+#include "GSM.hpp"
+#include "SerialInterface.hpp"
+#include <map>
+#include <WString.h>
 
-#define DUMP_AT_COMMANDS
-#define DUMP_GPS_COMMANDS
-#if defined(DUMP_AT_COMMANDS) || defined(DUMP_GPS_COMMANDS)
-#include <StreamDebugger.h>
+GPS* gps;
+GSM* gsm;
+SerialInterface* serialInterface;
+
+#ifdef NET_MQTT
+#include "MQTT.hpp"
+TinyGsmClient* mqttClient;
+MQTT* mqtt;
+#if defined(ESP8266)
+TimedLoop mqttLoop(100);
+#endif
 #endif
 
-TinyGPSPlus gps;
-
-#define TINY_GSM_DEBUG SerialMon
-#define TINY_GSM_USE_GPRS true
-#define TINY_GSM_USE_WIFI false
-
-#ifdef DUMP_AT_COMMANDS
-StreamDebugger debugger(SerialAT, SerialMon);
-TinyGsm        modem(debugger);
-#else
-TinyGsm        modem(SerialAT);
+#ifdef NET_HTTP
+#include "HTTP.hpp"
+TinyGsmClient* httpClient;
+HTTP* http;
 #endif
-TinyGsmClient client(modem);
-PubSubClient  mqtt(client);
-uint32_t lastReconnectAttempt = 0;
 
-uint32_t voltage_interval = 0;
+#if defined(ESP32)
+ulong statusUpdateCallbackId = 0;
+#elif defined(ESP8266)
+TimedLoop statusUpdateCallbackLoop(SEND_INTERVAL);
+TimedLoop connectionCheckLoop(1000);
+#endif
 
-void light_sleep(uint32_t ms)
+void StatusUpdateCallback(void*)
 {
-    esp_sleep_enable_timer_wakeup(ms * 1000);
-    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
-    esp_light_sleep_start();
-}
+    #ifdef DEBUG
+    Serial.println(F("Preparing to send data..."));
+    #endif
 
-void deep_sleep(uint32_t ms)
-{
-    esp_sleep_enable_timer_wakeup(ms * 1000);
-    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
-    esp_deep_sleep_start();
-}
+    std::map<String, String> data;
 
-uint32_t getBatteryVoltage()
-{
-    // Calculate the average power data
-    std::vector<uint32_t> data;
-    for (int i = 0; i < 30; ++i)
+    #ifdef SEND_GPS_LOCATION
+    if (gps->TinyGps.location.isValid())
     {
-        uint32_t val = analogReadMilliVolts(BOARD_BAT_ADC);
-        // Serial.printf("analogReadMilliVolts : %u mv \n", val * 2);
-        data.push_back(val);
-        delay(30);
+        data.insert({"loc_lat", String(gps->TinyGps.location.lat())});
+        data.insert({"loc_lng", String(gps->TinyGps.location.lng())});
+        data.insert({"loc_quality", String(gps->TinyGps.location.FixQuality())});
+        data.insert({"loc_age", String(gps->TinyGps.location.age())});
     }
-    std::sort(data.begin(), data.end());
-    data.erase(data.begin());
-    data.pop_back();
-    int sum = std::accumulate(data.begin(), data.end(), 0);
-    double average = static_cast<double>(sum) / data.size();
-    return  average * 2;
-}
+    #endif
 
-void displayInfo()
-{
-    SerialMon.print("Location: ");
-    if (gps.location.isValid())
+    #ifdef SEND_GPS_DATE
+    if (gps->TinyGps.date.isValid())
     {
-        SerialMon.print(gps.location.lat(), 6);
-        SerialMon.print(",");
-        SerialMon.print(gps.location.lng(), 6);
+        data.insert({"date", String(gps->TinyGps.date.value())});
+        data.insert({"date_age", String(gps->TinyGps.date.value())});
+    }
+    #endif
+
+    #ifdef SEND_GPS_TIME
+    if (gps->TinyGps.time.isValid())
+    {
+        data.insert({"time", String(gps->TinyGps.time.value())});
+        data.insert({"time_age", String(gps->TinyGps.time.age())});
+    }
+    #endif
+
+    #ifdef SEND_GPS_SPEED
+    if (gps->TinyGps.speed.isValid())
+    {
+        data.insert({"mps", String(gps->TinyGps.speed.mps())});
+        data.insert({"mps_age", String(gps->TinyGps.speed.age())});
+    }
+    #endif
+
+    #ifdef SEND_GPS_COURSE
+    if (gps->TinyGps.course.isValid())
+    {
+        data.insert({"deg", String(gps->TinyGps.course.deg())});
+        data.insert({"deg_age", String(gps->TinyGps.course.age())});
+    }
+    #endif
+
+    #ifdef SEND_GPS_ALTITUDE
+    if (gps->TinyGps.altitude.isValid())
+    {
+        data.insert({"alt", String(gps->TinyGps.altitude.meters())});
+        data.insert({"alt_age", String(gps->TinyGps.altitude.age())});
+    }
+    #endif
+
+    #ifdef SEND_GPS_SATELLITES
+    if (gps->TinyGps.satellites.isValid())
+    {
+        data.insert({"sat", String(gps->TinyGps.satellites.value())});
+        data.insert({"sat_age", String(gps->TinyGps.satellites.age())});
+    }
+    #endif
+
+    #ifdef SEND_GPS_HDOP
+    if (gps->TinyGps.hdop.isValid())
+    {
+        data.insert({"hdop", String(gps->TinyGps.hdop.hdop())});
+        data.insert({"hdop_age", String(gps->TinyGps.satellites.age())});
+    }
+    #endif
+
+    #if defined(SEND_BATTERY_SOC) || defined(SEND_BATTERY_PERCENTAGE) || defined(SEND_BATTERY_VOLTAGE)
+    uint8_t batSoc;
+    int8_t batPct;
+    uint16_t batVlt;
+    gsm->Modem->getBattStats(batSoc, batPct, batVlt);
+    #ifdef SEND_BATTERY_SOC
+    data.insert({"bat_soc", String(batSoc)});
+    #endif
+    #ifdef SEND_BATTERY_PERCENTAGE
+    data.insert({"bat_pct", String(batPct)});
+    #endif
+    #ifdef SEND_BATTERY_VOLTAGE
+    data.insert({"bat_vlt", String(batVlt)});
+    #endif
+    #endif
+
+    #ifdef SEND_GSM_OPERATOR
+    data.insert({"gsm_op", gsm->Modem->getOperator()});
+    #endif
+    #ifdef SEND_GSM_SIGNAL_STRENGTH
+    data.insert({"gsm_rssi", String(gsm->Modem->getSignalQuality())});
+    #endif
+    #ifdef SEND_GSM_IP
+    data.insert({"gsm_ip", gsm->Modem->getLocalIP()});
+    #endif
+
+    //Remove any entries where the value is empty, should hopefully be none of them.
+    for (auto it = data.begin(); it != data.end(); /*No increment here.*/)
+        if (it->second.isEmpty())
+            it = data.erase(it);
+        else
+            ++it;
+
+    //Why would this ever be empty under real world conditions lol?
+    if (data.empty())
+        return;
+
+    #if defined(DEBUG)
+    String logMessage;
+    for (auto &&kvp : data)
+    {
+        logMessage += kvp.first;
+        logMessage += '=';
+        logMessage += kvp.second;
+        logMessage += '\n';
+    }
+    Serial.println(F("Sending data:"));
+    Serial.print(F(logMessage.c_str()));
+    #endif
+
+    #ifdef NET_MQTT
+    String mqttMessage;
+    for (auto &&kvp : data)
+    {
+        mqttMessage += kvp.first;
+        mqttMessage += '=';
+        mqttMessage += kvp.second;
+        mqttMessage += '\n';
+    }
+    while (mqttMessage[mqttMessage.length() - 1] == '\n')
+        mqttMessage.remove(mqttMessage.length() - 1);
+    
+    if (!mqtt->Send(MQTT_TOPIC, mqttMessage.c_str()))
+    {
+        Serial.print(F("Failed to send MQTT message: "));
+        Serial.println(mqtt->mqttClient.state());
+    }
+    #endif
+
+    #ifdef NET_HTTP
+    HTTP::SRequest httpRequest =
+    {
+        .method = HTTP_METHOD,
+        .path = HTTP_PATH
+    };
+
+    if (HTTP_METHOD == HTTP::EMethod::GET)
+    {
+        httpRequest.query = data;
     }
     else
     {
-        SerialMon.print("INVALID");
+        String httpBody;
+        for (auto &&kvp : data)
+        {
+            httpBody += kvp.first;
+            httpBody += '=';
+            httpBody += kvp.second;
+            httpBody += '\n';
+        }
+        while (httpBody[httpBody.length() - 1] == '\n')
+            httpBody.remove(httpBody.length() - 1);
+
+        httpRequest.requestBody = httpBody;
     }
 
-    SerialMon.print("  Date/Time: ");
-    if (gps.date.isValid())
-    {
-        SerialMon.print(gps.date.month());
-        SerialMon.print("/");
-        SerialMon.print(gps.date.day());
-        SerialMon.print("/");
-        SerialMon.print(gps.date.year());
-    }
-    else
-    {
-        SerialMon.print("INVALID");
-    }
-
-    SerialMon.print(" ");
-    if (gps.time.isValid())
-    {
-        if (gps.time.hour() < 10) SerialMon.print("0");
-        SerialMon.print(gps.time.hour());
-        SerialMon.print(":");
-        if (gps.time.minute() < 10) SerialMon.print("0");
-        SerialMon.print(gps.time.minute());
-        SerialMon.print(":");
-        if (gps.time.second() < 10) SerialMon.print("0");
-        SerialMon.print(gps.time.second());
-        SerialMon.print(".");
-        if (gps.time.centisecond() < 10) SerialMon.print("0");
-        SerialMon.print(gps.time.centisecond());
-    }
-    else
-    {
-        SerialMon.print("INVALID");
-    }
-
-    SerialMon.println();
+    http->ProcessRequest(httpRequest);
+    if (httpRequest.responseCode < 200 || httpRequest.responseCode > 300)
+        Serial.println(F("Failed to send HTTP request."));
+    #endif
 }
 
-void mqttCallback(char *topic, byte *payload, unsigned int len)
+void Main()
 {
-    SerialMon.print("Message arrived [");
-    SerialMon.print(topic);
-    SerialMon.print("]: ");
-    SerialMon.write(payload, len);
-    SerialMon.println();
-}
+    // //Reset hardware on boot.
+    // pinMode(MODEM_POWERON, OUTPUT);
+    // digitalWrite(MODEM_POWERON, HIGH);
+    // pinMode(MODEM_RESET, OUTPUT);
+    // digitalWrite(MODEM_RESET, LOW);
+    // pinMode(MODEM_PWRKEY, OUTPUT);
+    // digitalWrite(MODEM_PWRKEY, LOW);
+    // delay(100);
+    // digitalWrite(MODEM_PWRKEY, HIGH);
+    // delay(1000);
+    // digitalWrite(MODEM_PWRKEY, LOW);
 
-boolean mqttConnect()
-{
-    SerialMon.print("Connecting to ");
-    SerialMon.print(MQTT_BROKER);
+    //This has to be set first before any other objects are initalized as if they write to serial before this the baud is set to something different.
+    Serial.begin(9600);
 
-    // Connect to MQTT Broker
-    boolean status = mqtt.connect(MQTT_CLIENT_ID, MQTT_USERNAME, MQTT_PASSWORD);
+    #ifdef DEBUG
+    //Allows time for me to connect to the serial.
+    delay(2000);
+    #endif
 
-    if (status == false)
+    #ifdef DEBUG
+    Serial.println(F("[DEBUG] Main()"));
+    //This is in place just for me to make sure the serial hasn't lost connection or the device has stalled.
+    Scheduler::Add(5000, [](void*){ Serial.println(F((String("SERIAL_ALIVE_CHECK:") + String((millis() / 1000) - 2)).c_str())); });
+    #endif
+
+    gps = new GPS(GPS_TX, GPS_RX);
+
+    gsm = new GSM(MODEM_TX, MODEM_RX, MODEM_APN, MODEM_PIN, MODEM_USERNAME, MODEM_PASSWORD);
+    gsm->Connect();
+    #if defined(ESP32)
+    gsm->ConfigureAutomaticConnectionCheck(100);
+    #endif
+
+    #ifdef NET_MQTT
+    mqttClient = gsm->CreateClient();
+    mqtt = new MQTT(*mqttClient, MQTT_DEVICE_ID, MQTT_BROKER, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD);
+    mqtt->Subscribe(MQTT_TOPIC);
+    #if defined(ESP32)
+    mqtt->ConfigureAutomaticConnectionCheck(100);
+    mqtt->ConfigureAutomaticCallbackDispatcher(100);
+    #elif defined(ESP8266)
+    mqttLoop.Callback = [](){ mqtt->Loop(); };
+    #endif
+    #endif
+
+    #ifdef NET_HTTP
+    httpClient = gsm->CreateClient();
+    http = new HTTP(*httpClient, HTTP_ADDRESS, HTTP_PORT);
+    #endif
+
+    serialInterface = new SerialInterface(
+        gps,
+        gsm,
+        #ifdef NET_MQTT
+        mqtt,
+        #else
+        nullptr,
+        #endif
+        #ifdef NET_HTTP
+        http
+        #else
+        nullptr
+        #endif
+    );
+    serialInterface->Begin();
+
+    #if defined(ESP32)
+    statusUpdateCallbackId = Scheduler::Add(SEND_INTERVAL, StatusUpdateCallback);
+    #elif defined(ESP8266)
+    // statusUpdateCallbackLoop = TimedLoop<void>(SEND_INTERVAL, [](){ StatusUpdateCallback(nullptr); });
+    statusUpdateCallbackLoop.Callback = [](){ StatusUpdateCallback(nullptr); };
+
+    connectionCheckLoop.Callback = []()
     {
-        SerialMon.println(" fail");
-        return false;
-    }
-    SerialMon.println(" success");
+        if (gsm->Connect() != 0)
+            return;
 
-    mqtt.publish(MQTT_TOPIC, "GsmClientTest started");
-    mqtt.subscribe(MQTT_TOPIC);
-
-    return mqtt.connected();
+        #ifdef NET_MQTT
+        mqtt->Connect();
+        #endif
+    };
+    #endif
 }
 
+#if defined(ESP8266)
+void Loop()
+{
+    serialInterface->Loop();
+    connectionCheckLoop.Loop();
+    #ifdef NET_MQTT
+    mqttLoop.Loop();
+    #endif
+    statusUpdateCallbackLoop.Loop();
+    yield();
+}
+#endif
+
+#pragma region Entrypoint stuff
+#ifdef ARDUINO
 void setup()
 {
-    SerialMon.begin(115200);
-    SerialAT.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
-    SerialGPS.begin(9600, SERIAL_8N1, GPS_RX, GPS_TX);
-
-    uint32_t battery_voltage_mv = getBatteryVoltage();
-    // If the battery level is lower than 3.6V, the system will continue to sleep and wake up after one hour to continue testing.
-    if (battery_voltage_mv < BATTERY_LOW_LEVEL)
-    {
-        Serial.printf("Battery voltage is too low ,%u mv, entering sleep mode\n", battery_voltage_mv);
-        deep_sleep(BATTERY_LOW_SLEEP_TIME);
-    }
-    Serial.printf("Battery voltage is %u mv\n", battery_voltage_mv);
-    
-    //Power on modem.
-    pinMode(MODEM_POWERON, OUTPUT);
-    digitalWrite(MODEM_POWERON, HIGH);
-
-    //Reset modem.
-    pinMode(MODEM_RESET, OUTPUT);
-    digitalWrite(MODEM_RESET, LOW);
-    pinMode(MODEM_PWRKEY, OUTPUT);
-    digitalWrite(MODEM_PWRKEY, LOW);
-    delay(100);
-    digitalWrite(MODEM_PWRKEY, HIGH);
-    delay(1000);
-    digitalWrite(MODEM_PWRKEY, LOW);
-
-    //Set ring pin input.
-    pinMode(MODEM_RING, INPUT_PULLUP);
-
-    SerialMon.println("Start modem...");
-    delay(3000);
-    // Restart takes quite some time
-    // To skip it, call init() instead of restart()
-    DBG("Initializing modem...");
-    if (!modem.init())
-    {
-        DBG("Failed to restart modem, delaying 10s and retrying");
-        return;
-    }
-
-    String name = modem.getModemName();
-    DBG("Modem Name:", name);
-
-    String modemInfo = modem.getModemInfo();
-    DBG("Modem Info:", modemInfo);
-
-    #if TINY_GSM_USE_GPRS
-    // Unlock your SIM card with a PIN if needed
-    if (MODEM_PIN && modem.getSimStatus() != 3)
-        modem.simUnlock(MODEM_PIN);
-    #endif
-
-    #if TINY_GSM_USE_WIFI
-    // Wifi connection parameters must be set before waiting for the network
-    SerialMon.print(F("Setting SSID/password..."));
-    if (!modem.networkConnect(MODEM_SSID, MODEM_PASSWORD))
-    {
-        SerialMon.println(" fail");
-        delay(10000);
-        return;
-    }
-    SerialMon.println(" success");
-    #endif
-
-    #if TINY_GSM_USE_GPRS && defined TINY_GSM_MODEM_XBEE
-    // The XBee must run the gprsConnect function BEFORE waiting for network!
-    modem.gprsConnect(apn, gprsUser, gprsPass);
-    #endif
-
-    SerialMon.print("Waiting for network...");
-    if (!modem.waitForNetwork())
-    {
-        SerialMon.println(" fail");
-        delay(10000);
-        return;
-    }
-    SerialMon.println(" success");
-
-    if (modem.isNetworkConnected())
-        SerialMon.println("Network connected");
-
-    #if TINY_GSM_USE_GPRS
-    // GPRS connection parameters are usually set after network registration
-    SerialMon.print(F("Connecting to "));
-    SerialMon.print(MODEM_APN);
-    if (!modem.gprsConnect(MODEM_APN, MODEM_USERNAME, MODEM_PASSWORD))
-    {
-        SerialMon.println(" fail");
-        delay(10000);
-        return;
-    }
-    SerialMon.println(" success");
-
-    if (modem.isGprsConnected())
-        SerialMon.println("GPRS connected");
-    #endif
-
-    // MQTT Broker setup
-    mqtt.setServer(MQTT_BROKER, MQTT_PORT);
-    mqtt.setCallback(mqttCallback);
+    Main();
 }
 
 void loop()
 {
-    #pragma Region battery
-    if (millis() > voltage_interval)
-    {
-        // Check the battery voltage every 30 seconds
-        voltage_interval = millis() + 30000;
-
-        uint32_t battery_voltage_mv = getBatteryVoltage();
-
-        // If the battery level is lower than 3.6V, the system will continue to sleep and wake up after one hour to continue testing.
-
-        if (battery_voltage_mv < BATTERY_LOW_LEVEL) {
-
-            Serial.printf("Battery voltage is too low ,%u mv, entering sleep mode\n", battery_voltage_mv);
-
-            // Turn off the modem
-            modem.poweroff();
-
-            // Sleep esp32
-            deep_sleep(BATTERY_LOW_SLEEP_TIME); //60 minute
-
-        } else if (battery_voltage_mv < BATTERY_WARN_LEVEL) {
-
-            Serial.println("Battery voltage reaches the warning voltage");
-
-        }
-
-    }
-    #pragma endregion
-
-    #pragma region SerialMon
-    // while (SerialMon.available())
-    // {
-    //     int c = SerialMon.read();
-    //     SerialMon.write(c); //Relay the character back to the terminal (required so you can see what you are typing).
-    //     SerialAT.write(c);
-    // }
-    // while (SerialAT.available())
-    //     SerialMon.write(SerialAT.read());
-    #pragma endregion
-
-    #pragma region GPS
-    while (SerialGPS.available())
-    {
-        int c = SerialGPS.read();
-        #ifdef DUMP_GPS_COMMANDS
-        SerialMon.write(c);
-        #endif
-        if (gps.encode(c))
-            displayInfo();
-    }
-    #pragma endregion
-
-    #pragma region GSM
-    // Make sure we're still registered on the network
-    if (!modem.isNetworkConnected())
-    {
-        SerialMon.println("Network disconnected");
-        if (!modem.waitForNetwork(180000L, true))
-        {
-            SerialMon.println(" fail");
-            delay(10000);
-            return;
-        }
-        if (modem.isNetworkConnected())
-        {
-            SerialMon.println("Network re-connected");
-        }
-
-#if TINY_GSM_USE_GPRS
-        // and make sure GPRS/EPS is still connected
-        if (!modem.isGprsConnected())
-        {
-            SerialMon.println("GPRS disconnected!");
-            SerialMon.print("Connecting to ");
-            SerialMon.print(MODEM_APN);
-            if (!modem.gprsConnect(MODEM_APN, MODEM_USERNAME, MODEM_PASSWORD))
-            {
-                SerialMon.println(" fail");
-                delay(10000);
-                return;
-            }
-            if (modem.isGprsConnected())
-                SerialMon.println("GPRS reconnected");
-        }
-#endif
-    }
-
-    if (!mqtt.connected())
-    {
-        SerialMon.println("=== MQTT NOT CONNECTED ===");
-        //Reconnect every 10 seconds.
-        uint32_t t = millis();
-        if (t - lastReconnectAttempt > 10000L)
-        {
-            lastReconnectAttempt = t;
-            if (mqttConnect())
-                lastReconnectAttempt = 0;
-        }
-        delay(100);
-        return;
-    }
-
-    mqtt.loop();
-    #pragma endregion
-
-    delay(1);
+    #if defined(ESP32)
+    // vPortYield();
+    vTaskDelete(NULL);
+    #elif defined(ESP8266)
+    Loop();
+    #endif
 }
+#else
+extern "C" void app_main()
+{
+    Main();
+    //app_main IS allowed to return as per the ESP32 documentation (other FreeRTOS tasks will continue to run).
+}
+#endif
+#pragma endregion
