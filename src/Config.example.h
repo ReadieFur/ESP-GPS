@@ -5,7 +5,6 @@
 #define MODEM_USERNAME          ""                  //The username to be used to connect to the GSM network, leave blank for none.
 #define MODEM_PASSWORD          ""                  //The password to be used to connect to the GSM network, leave blank for none.
 
-#define MQTT_DEVICE_ID          ""                  //The device ID to use when sending to the broker.
 #define MQTT_BROKER             ""                  //MQTT broker IP or domain.
 #define MQTT_PORT               1883                //MQTT port.
 #define MQTT_USERNAME           ""                  //MQTT Username, leave blank for none.
