@@ -11,7 +11,7 @@ action:
         - "{{ trigger.payload_json.loc_lng }}"
       attributes:
         gps_accuracy: >-
-          {{ [0, 20, 6, 2, 0.5, 1, 150, 1500,
+          {{ [0, 100, 15, 3, 1.25, 2.5, 250, 1000,
           2000][trigger.payload_json.loc_quality] }}
         altitude: "{{ trigger.payload_json.alt }}m"
         battery: "{{ trigger.payload_json.bat_vlt }}mV"
