@@ -8,16 +8,16 @@
 class GPS
 {
 private:
-    static TinyGPSPlus gps;
+    static TinyGPSPlus Gps;
 
     static void DisplayInfo()
     {
         SerialMon.print("Location: ");
-        if (gps.location.isValid())
+        if (Gps.location.isValid())
         {
-            SerialMon.print(gps.location.lat(), 6);
+            SerialMon.print(Gps.location.lat(), 6);
             SerialMon.print(",");
-            SerialMon.print(gps.location.lng(), 6);
+            SerialMon.print(Gps.location.lng(), 6);
         }
         else
         {
@@ -25,13 +25,13 @@ private:
         }
 
         SerialMon.print("  Date/Time: ");
-        if (gps.date.isValid())
+        if (Gps.date.isValid())
         {
-            SerialMon.print(gps.date.month());
+            SerialMon.print(Gps.date.month());
             SerialMon.print("/");
-            SerialMon.print(gps.date.day());
+            SerialMon.print(Gps.date.day());
             SerialMon.print("/");
-            SerialMon.print(gps.date.year());
+            SerialMon.print(Gps.date.year());
         }
         else
         {
@@ -39,19 +39,26 @@ private:
         }
 
         SerialMon.print(" ");
-        if (gps.time.isValid())
+        if (Gps.time.isValid())
         {
-            if (gps.time.hour() < 10) SerialMon.print("0");
-            SerialMon.print(gps.time.hour());
+            if (Gps.time.hour() < 10)
+                SerialMon.print("0");
+            SerialMon.print(Gps.time.hour());
+
             SerialMon.print(":");
-            if (gps.time.minute() < 10) SerialMon.print("0");
-            SerialMon.print(gps.time.minute());
+            if (Gps.time.minute() < 10)
+                SerialMon.print("0");
+            SerialMon.print(Gps.time.minute());
+            
             SerialMon.print(":");
-            if (gps.time.second() < 10) SerialMon.print("0");
-            SerialMon.print(gps.time.second());
+            if (Gps.time.second() < 10)
+                SerialMon.print("0");
+            SerialMon.print(Gps.time.second());
+            
             SerialMon.print(".");
-            if (gps.time.centisecond() < 10) SerialMon.print("0");
-            SerialMon.print(gps.time.centisecond());
+            if (Gps.time.centisecond() < 10)
+                SerialMon.print("0");
+            SerialMon.print(Gps.time.centisecond());
         }
         else
         {
@@ -75,10 +82,10 @@ public:
             #ifdef DUMP_GPS_COMMANDS
             SerialMon.write(c);
             #endif
-            if (gps.encode(c))
+            if (Gps.encode(c))
                 DisplayInfo();
         }
     }
 };
 
-TinyGPSPlus GPS::gps;
+TinyGPSPlus GPS::Gps;

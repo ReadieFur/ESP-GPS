@@ -5,6 +5,7 @@
 #include "GPS.hpp"
 #include "GSM.hpp"
 #include "MQTT.hpp"
+#include "Publish.hpp"
 
 void setup()
 {
@@ -13,6 +14,7 @@ void setup()
     GPS::Init();
     GSM::Init();
     MQTT::Init();
+    Publish::Init();
 }
 
 void loop()
@@ -32,6 +34,7 @@ void loop()
     GPS::Loop();
     GSM::Loop();
     MQTT::Loop();
+    Publish::Loop();
 
     delay(1);
 }

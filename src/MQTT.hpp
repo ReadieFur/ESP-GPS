@@ -9,10 +9,9 @@
 class MQTT
 {
 private:
-    static PubSubClient mqtt;
-    static uint32_t lastReconnectAttempt;
+    static uint32_t _lastReconnectAttempt;
 
-    static void mqttCallback(char *topic, byte *payload, unsigned int len)
+    static void Callback(char* topic, byte* payload, uint len)
     {
         SerialMon.print("Message arrived [");
         SerialMon.print(topic);
@@ -21,14 +20,13 @@ private:
         SerialMon.println();
     }
 
-    static boolean mqttConnect()
+    static bool Connect()
     {
         SerialMon.print("Connecting to ");
         SerialMon.print(MQTT_BROKER);
 
-        // Connect to MQTT Broker
-        boolean status = mqtt.connect(MQTT_CLIENT_ID, MQTT_USERNAME, MQTT_PASSWORD);
-
+        //Connect to MQTT broker.
+        bool status = mqtt.connect(MQTT_CLIENT_ID, MQTT_USERNAME, MQTT_PASSWORD);
         if (status == false)
         {
             SerialMon.println(" fail");
@@ -43,25 +41,28 @@ private:
     }
 
 public:
+    static PubSubClient mqtt;
+
     static void Init()
     {
-        // MQTT Broker setup
+        //MQTT broker setup.
         mqtt.setServer(MQTT_BROKER, MQTT_PORT);
-        mqtt.setCallback(mqttCallback);
+        mqtt.setCallback(Callback);
     }
 
     static void Loop()
     {
         if (!mqtt.connected())
         {
-            SerialMon.println("=== MQTT NOT CONNECTED ===");
-            //Reconnect every 10 seconds.
-            uint32_t t = millis();
-            if (t - lastReconnectAttempt > 10000L)
+            DBG("MQTT not connected.");
+            // SerialMon.println("MQTT not connected.");
+            //Reconnect every x milliseconds.
+            uint32_t now = millis();
+            if (now - _lastReconnectAttempt > 10000L)
             {
-                lastReconnectAttempt = t;
-                if (mqttConnect())
-                    lastReconnectAttempt = 0;
+                _lastReconnectAttempt = now;
+                if (Connect())
+                    _lastReconnectAttempt = 0;
             }
             delay(100);
             return;
@@ -71,5 +72,5 @@ public:
     }
 };
 
-PubSubClient MQTT::mqtt(GSM::client);
-uint32_t MQTT::lastReconnectAttempt = 0;
+PubSubClient MQTT::mqtt(GSM::Client);
+uint32_t MQTT::_lastReconnectAttempt = 0;

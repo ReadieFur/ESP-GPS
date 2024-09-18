@@ -4,7 +4,9 @@
 #include "Config.h"
 #include <Client.h>
 
+// #ifdef DUMP_AT_COMMANDS
 #define TINY_GSM_DEBUG SerialMon
+// #endif
 #define TINY_GSM_USE_GPRS true
 #define TINY_GSM_USE_WIFI false
 
@@ -17,12 +19,12 @@ class GSM
 {
 private:
     #ifdef DUMP_AT_COMMANDS
-    static StreamDebugger debugger;
+    static StreamDebugger _debugger;
     #endif
 
 public:
-    static TinyGsm modem;
-    static TinyGsmClient client;
+    static TinyGsm Modem;
+    static TinyGsmClient Client;
 
     static void Init()
     {
@@ -47,46 +49,28 @@ public:
 
         SerialMon.println("Start modem...");
         delay(3000);
-        // Restart takes quite some time
-        // To skip it, call init() instead of restart()
+        //Restart takes quite some time, to skip it, call init() instead of restart().
         DBG("Initializing modem...");
-        if (!modem.init())
+        if (!Modem.init())
         {
             DBG("Failed to restart modem, delaying 10s and retrying");
             return;
         }
 
-        String name = modem.getModemName();
+        String name = Modem.getModemName();
         DBG("Modem Name:", name);
 
-        String modemInfo = modem.getModemInfo();
+        String modemInfo = Modem.getModemInfo();
         DBG("Modem Info:", modemInfo);
 
         #if TINY_GSM_USE_GPRS
-        // Unlock your SIM card with a PIN if needed
-        if (MODEM_PIN && modem.getSimStatus() != 3)
-            modem.simUnlock(MODEM_PIN);
-        #endif
-
-        #if TINY_GSM_USE_WIFI
-        // Wifi connection parameters must be set before waiting for the network
-        SerialMon.print(F("Setting SSID/password..."));
-        if (!modem.networkConnect(MODEM_SSID, MODEM_PASSWORD))
-        {
-            SerialMon.println(" fail");
-            delay(10000);
-            return;
-        }
-        SerialMon.println(" success");
-        #endif
-
-        #if TINY_GSM_USE_GPRS && defined TINY_GSM_MODEM_XBEE
-        // The XBee must run the gprsConnect function BEFORE waiting for network!
-        modem.gprsConnect(apn, gprsUser, gprsPass);
+        //Unlock your SIM card with a PIN if needed.
+        if (MODEM_PIN && Modem.getSimStatus() != 3)
+            Modem.simUnlock(MODEM_PIN);
         #endif
 
         SerialMon.print("Waiting for network...");
-        if (!modem.waitForNetwork())
+        if (!Modem.waitForNetwork())
         {
             SerialMon.println(" fail");
             delay(10000);
@@ -94,14 +78,14 @@ public:
         }
         SerialMon.println(" success");
 
-        if (modem.isNetworkConnected())
+        if (Modem.isNetworkConnected())
             SerialMon.println("Network connected");
 
         #if TINY_GSM_USE_GPRS
-        // GPRS connection parameters are usually set after network registration
+        //GPRS connection parameters are usually set after network registration.
         SerialMon.print(F("Connecting to "));
         SerialMon.print(MODEM_APN);
-        if (!modem.gprsConnect(MODEM_APN, MODEM_USERNAME, MODEM_PASSWORD))
+        if (!Modem.gprsConnect(MODEM_APN, MODEM_USERNAME, MODEM_PASSWORD))
         {
             SerialMon.println(" fail");
             delay(10000);
@@ -109,42 +93,42 @@ public:
         }
         SerialMon.println(" success");
 
-        if (modem.isGprsConnected())
+        if (Modem.isGprsConnected())
             SerialMon.println("GPRS connected");
         #endif
     }
 
     static void Loop()
     {
-        // Make sure we're still registered on the network
-        if (!modem.isNetworkConnected())
+        //Make sure we're still registered on the network.
+        if (!Modem.isNetworkConnected())
         {
             SerialMon.println("Network disconnected");
-            if (!modem.waitForNetwork(180000L, true))
+            if (!Modem.waitForNetwork(180000L, true))
             {
                 SerialMon.println(" fail");
                 delay(10000);
                 return;
             }
-            if (modem.isNetworkConnected())
+            if (Modem.isNetworkConnected())
             {
                 SerialMon.println("Network re-connected");
             }
 
             #if TINY_GSM_USE_GPRS
-            // and make sure GPRS/EPS is still connected
-            if (!modem.isGprsConnected())
+            //And make sure GPRS/EPS is still connected.
+            if (!Modem.isGprsConnected())
             {
                 SerialMon.println("GPRS disconnected!");
                 SerialMon.print("Connecting to ");
                 SerialMon.print(MODEM_APN);
-                if (!modem.gprsConnect(MODEM_APN, MODEM_USERNAME, MODEM_PASSWORD))
+                if (!Modem.gprsConnect(MODEM_APN, MODEM_USERNAME, MODEM_PASSWORD))
                 {
                     SerialMon.println(" fail");
                     delay(10000);
                     return;
                 }
-                if (modem.isGprsConnected())
+                if (Modem.isGprsConnected())
                     SerialMon.println("GPRS reconnected");
             }
             #endif
@@ -153,9 +137,9 @@ public:
 };
 
 #ifdef DUMP_AT_COMMANDS
-StreamDebugger GSM::debugger(SerialAT, SerialMon);
-TinyGsm GSM::modem(GSM::debugger);
+StreamDebugger GSM::_debugger(SerialAT, SerialMon);
+TinyGsm GSM::Modem(GSM::_debugger);
 #else
 TinyGsm GSM::modem(SerialAT);
 #endif
-TinyGsmClient GSM::client(GSM::modem);
+TinyGsmClient GSM::Client(GSM::Modem);
