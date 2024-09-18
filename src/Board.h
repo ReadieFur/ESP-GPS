@@ -12,7 +12,6 @@
 #define MODEM_POWERON                   12
 #define MODEM_RING                      33
 #define MODEM_RESET                     5
-#define MODEM_RESET_LEVEL               HIGH
 #define SerialAT                        Serial1
 #define GPS_TX                          21
 #define GPS_RX                          22
