@@ -11,10 +11,10 @@
 #define MODEM_TX                        26
 #define MODEM_RX                        27
 //The modem boot pin needs to follow the startup sequence.
-#define BOARD_PWRKEY                    4
+#define MODEM_PWRKEY                    4
 #define BOARD_ADC                       35
 //The modem power switch must be set to HIGH for the modem to supply power.
-#define BOARD_POWERON                   12
+#define MODEM_POWERON                   12
 #define MODEM_RING                      33
 #define MODEM_RESET                     5
 #define BOARD_MISO                      2
@@ -49,10 +49,10 @@
 #define MODEM_TX                        26
 #define MODEM_RX                        25
 //The modem boot pin needs to follow the startup sequence.
-#define BOARD_PWRKEY                    4
+#define MODEM_PWRKEY                    4
 #define BOARD_LED                       12
 //There is no modem power control, the LED Pin is used as a power indicator here.
-#define BOARD_POWERON                   BOARD_LED
+#define MODEM_POWERON                   BOARD_LED
 #define MODEM_RING                      13
 #define MODEM_RESET                     27
 #define MODEM_RESET_LEVEL               LOW
@@ -69,10 +69,10 @@
 #define MODEM_TX                        27
 #define MODEM_RX                        26
 //The modem boot pin needs to follow the startup sequence.
-#define BOARD_PWRKEY                    4
+#define MODEM_PWRKEY                    4
 #define BOARD_LED                       13
 //There is no modem power control, the LED Pin is used as a power indicator here.
-#define BOARD_POWERON                   BOARD_LED
+#define MODEM_POWERON                   BOARD_LED
 #define MODEM_RING                      33
 #define MODEM_RESET                     5
 #define MODEM_RESET_LEVEL               LOW
@@ -88,10 +88,10 @@
 #define MODEM_TX                        11
 #define MODEM_RX                        10
 //The modem boot pin needs to follow the startup sequence.
-#define BOARD_PWRKEY                    18
+#define MODEM_PWRKEY                    18
 #define BOARD_LED                       12
 //There is no modem power control, the LED Pin is used as a power indicator here.
-#define BOARD_POWERON                   BOARD_LED
+#define MODEM_POWERON                   BOARD_LED
 #define MODEM_RING                      3
 #define MODEM_RESET                     17
 #define MODEM_RESET_LEVEL               LOW
@@ -113,10 +113,10 @@
 #define MODEM_TX                        26
 #define MODEM_RX                        27
 //The modem boot pin needs to follow the startup sequence.
-#define BOARD_PWRKEY                    4
+#define MODEM_PWRKEY                    4
 #define BOARD_BAT_ADC                   35
 //The modem power switch must be set to HIGH for the modem to supply power.
-#define BOARD_POWERON                   12         //T-A7608-V2 is onboard led.
+#define MODEM_POWERON                   12         //T-A7608-V2 is onboard led.
 #define MODEM_RING                      33
 #define MODEM_RESET                     5          //T-A7608-V2 no connection.
 #define BOARD_MISO                      2
@@ -139,10 +139,10 @@
 #define MODEM_TX                        17
 #define MODEM_RX                        18
 //The modem boot pin needs to follow the startup sequence.
-#define BOARD_PWRKEY                    15
+#define MODEM_PWRKEY                    15
 #define BOARD_BAT_ADC                   4
 //The modem power switch must be set to HIGH for the modem to supply power.
-// #define BOARD_POWERON                   12
+// #define MODEM_POWERON                   12
 #define MODEM_RING                      6
 #define MODEM_RESET                     16
 #define BOARD_MISO                      47
@@ -164,7 +164,7 @@
 #define MODEM_RX                        42
 #define MODEM_TX                        41
 //The modem boot pin needs to follow the startup sequence.
-#define BOARD_PWRKEY                    38
+#define MODEM_PWRKEY                    38
 #define MODEM_RING                      6
 #define MODEM_RESET                     40
 #define MODEM_RTS                       1

@@ -219,15 +219,28 @@ void StatusUpdateCallback(void*)
 
 void Main()
 {
-    #ifdef DEBUG
-    //Allows time for me to connect to the serial.
-    delay(2000);
-    #endif
+    // //Reset hardware on boot.
+    // pinMode(MODEM_POWERON, OUTPUT);
+    // digitalWrite(MODEM_POWERON, HIGH);
+    // pinMode(MODEM_RESET, OUTPUT);
+    // digitalWrite(MODEM_RESET, LOW);
+    // pinMode(MODEM_PWRKEY, OUTPUT);
+    // digitalWrite(MODEM_PWRKEY, LOW);
+    // delay(100);
+    // digitalWrite(MODEM_PWRKEY, HIGH);
+    // delay(1000);
+    // digitalWrite(MODEM_PWRKEY, LOW);
 
     //This has to be set first before any other objects are initalized as if they write to serial before this the baud is set to something different.
     Serial.begin(9600);
 
     #ifdef DEBUG
+    //Allows time for me to connect to the serial.
+    delay(2000);
+    #endif
+
+    #ifdef DEBUG
+    Serial.println(F("[DEBUG] Main()"));
     //This is in place just for me to make sure the serial hasn't lost connection or the device has stalled.
     Scheduler::Add(5000, [](void*){ Serial.println(F((String("SERIAL_ALIVE_CHECK:") + String((millis() / 1000) - 2)).c_str())); });
     #endif
