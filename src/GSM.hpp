@@ -107,10 +107,9 @@ public:
             return true;
         
         SerialMon.print("Network disconnected, reconnecting...");
-        if (!Modem.waitForNetwork(180000L, true))
+        if (!Modem.waitForNetwork(60000L, true))
         {
             SerialMon.println(" fail");
-            // delay(10000);
             return false;
         }
         if (Modem.isNetworkConnected())
@@ -128,7 +127,6 @@ public:
         if (!Modem.gprsConnect(MODEM_APN, MODEM_USERNAME, MODEM_PASSWORD))
         {
             SerialMon.println(" fail");
-            // delay(10000);
             return false;
         }
         if (Modem.isGprsConnected())
