@@ -17,6 +17,8 @@
 #define BATTERY_OK_INTERVAL     1 * 60 * 1000       //How often (in milliseconds) to publish data to the MQTT broker when the battery is above the low threshold.
 #define BATTERY_CHRG_INTERVAL   5 * 1000            //How often (in milliseconds) to publish data to the MQTT broker when the battery is charging.
 
+#define AP_SSID                 "espgps"
+
 //Developer options.
 #define DUMP_AT_COMMANDS
 #define DUMP_GPS_COMMANDS

@@ -23,8 +23,11 @@
 //It is only available in V1.4 version. In other versions, IO36 is not connected.
 #define BOARD_SOLAR_ADC                 36
 #define SerialMon                       Serial
-#define BATTERY_CRIT_VOLTAGE    3600                //Shutdown voltage (in millivolts).
-#define BATTERY_LOW_VOLTAGE     3700                //Low voltage (in millivolts).
+#define BATTERY_CRIT_VOLTAGE            3550        //Shutdown voltage (in millivolts).
+#define BATTERY_LOW_VOLTAGE             3650        //Low voltage (in millivolts).
 #ifndef TINY_GSM_MODEM_A7670
 #define TINY_GSM_MODEM_A7670
 #endif
+#define MPU_INT                         32
+#define MPU_SDA                         34
+#define MPU_SCL                         18

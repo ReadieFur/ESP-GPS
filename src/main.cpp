@@ -1,7 +1,10 @@
 #include <Arduino.h>
 #include "Board.h"
 #include "Config.h"
+#include "SerialMonitor.hpp"
+#include "Motion.hpp"
 #include "Battery.hpp"
+#include "OTA.hpp"
 #include "GPS.hpp"
 #include "GSM.hpp"
 #include "MQTT.hpp"
@@ -11,28 +14,23 @@ short retryAttempts = 0;
 
 void setup()
 {
-    SerialMon.begin(115200);
+    SerialMonitor::Init();
+    Motion::Init();
     Battery::Init();
+    OTA::Init();
     GPS::Init();
     GSM::Init();
     MQTT::Init();
     Publish::Init();
+    //TODO: Motion detector wakeup.
 }
 
 void loop()
 {
-    #pragma region SerialMon
-    while (SerialMon.available())
-    {
-        int c = SerialMon.read();
-        SerialMon.write(c); //Relay the character back to the terminal (required so you can see what you are typing).
-        // SerialAT.write(c);
-    }
-    // while (SerialAT.available())
-    //     SerialMon.write(SerialAT.read());
-    #pragma endregion
-
-    Battery::Loop();
+    SerialMonitor::Loop();
+    Motion::Loop();
+    Battery::Loop(); //TODO: Possibly move this after the publish so we can send one update anyway?
+    OTA::Loop();
     GPS::Loop();
 
     //If we fail upon first boot, retry a few times.
@@ -53,7 +51,7 @@ void loop()
     if (connectFailed)
     {
         int sleepDuration = Battery::GetSleepDuration() / 2;
-        Serial.printf("Fail, sleeping for: %ims\n", sleepDuration);
+        SerialMon.printf("Fail, sleeping for: %ims\n", sleepDuration);
         Battery::LightSleep(sleepDuration);
         return;
     }
@@ -61,11 +59,11 @@ void loop()
     if (!Publish::Loop())
     {
         int sleepDuration = Battery::GetSleepDuration() / 2;
-        Serial.printf("Fail, sleeping for: %ims\n", sleepDuration);
+        SerialMon.printf("Fail, sleeping for: %ims\n", sleepDuration);
         Battery::LightSleep(sleepDuration);
         return;
     }
 
-    Serial.printf("Success, sleeping for: %ims\n", Battery::GetSleepDuration());
+    SerialMon.printf("Success, sleeping for: %ims\n", Battery::GetSleepDuration());
     Battery::LightSleep(Battery::GetSleepDuration());
 }
