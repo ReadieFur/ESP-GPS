@@ -23,17 +23,21 @@ public:
         if (i2c.begin(MPU_SDA, MPU_SCL))
         {
             SerialMon.println("I2C failed.");
-            setupFailed = true;
             return false;
         }
 
         if (!mpu.begin((uint8_t)104U, &i2c))
         {
             SerialMon.println("MPU6050 not found.");
-            setupFailed = true;
             return false;
         }
         SerialMon.println("MPU6050 found.");
+
+        if (esp_sleep_is_valid_wakeup_gpio((gpio_num_t)MPU_INT))
+        {
+            SerialMon.println("MPU6050 interrupt pin invalid for wakeup.");
+            return false;
+        }
 
         //Clear any interrupts.
         mpu.getEvent(nullptr, nullptr, nullptr);
@@ -47,16 +51,18 @@ public:
 
         esp_sleep_enable_ext0_wakeup((gpio_num_t)MPU_INT, 1);
 
+        setupFailed = false;
         return true;
     }
 
     static void Loop()
     {
-        if (!setupFailed)
-            mpu.getEvent(nullptr, nullptr, nullptr);
+        if (setupFailed)
+            return;
+        mpu.getEvent(nullptr, nullptr, nullptr);
     }
 };
 
 TwoWire Motion::i2c = TwoWire(0);
 Adafruit_MPU6050 Motion::mpu;
-bool Motion::setupFailed = false;
+bool Motion::setupFailed = true;

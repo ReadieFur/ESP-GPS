@@ -4,7 +4,9 @@
 #include "SerialMonitor.hpp"
 #include "Motion.hpp"
 #include "Battery.hpp"
+#ifdef ENABLE_AP
 #include "OTA.hpp"
+#endif
 #include "GPS.hpp"
 #include "GSM.hpp"
 #include "MQTT.hpp"
@@ -15,14 +17,28 @@ short retryAttempts = 0;
 void setup()
 {
     SerialMonitor::Init();
+
+    //TODO: Check if wakeup source was from motion.
+    esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
+    switch (wakeup_reason)
+    {
+        case ESP_SLEEP_WAKEUP_EXT0: SerialMon.println("Wakeup caused by external signal using RTC_IO"); break;
+        case ESP_SLEEP_WAKEUP_EXT1: SerialMon.println("Wakeup caused by external signal using RTC_CNTL"); break;
+        case ESP_SLEEP_WAKEUP_TIMER: SerialMon.println("Wakeup caused by timer"); break;
+        case ESP_SLEEP_WAKEUP_TOUCHPAD: SerialMon.println("Wakeup caused by touchpad"); break;
+        case ESP_SLEEP_WAKEUP_ULP: SerialMon.println("Wakeup caused by ULP program"); break;
+        default: SerialMon.printf("Wakeup was not caused by deep sleep: %d\n", wakeup_reason); break;
+    }
+
     Motion::Init();
     Battery::Init();
+    #ifdef ENABLE_AP
     OTA::Init();
+    #endif
     GPS::Init();
     GSM::Init();
     MQTT::Init();
     Publish::Init();
-    //TODO: Motion detector wakeup.
 }
 
 void loop()
@@ -30,7 +46,9 @@ void loop()
     SerialMonitor::Loop();
     Motion::Loop();
     Battery::Loop(); //TODO: Possibly move this after the publish so we can send one update anyway?
+    #ifdef ENABLE_AP
     OTA::Loop();
+    #endif
     GPS::Loop();
 
     //If we fail upon first boot, retry a few times.
