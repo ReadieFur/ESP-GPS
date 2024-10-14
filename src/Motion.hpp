@@ -1,5 +1,7 @@
 #pragma once
 
+#define MOTION_MODULE
+
 //https://registry.platformio.org/libraries/adafruit/Adafruit%20MPU6050/examples/motion_detection/motion_detection.ino
 //https://randomnerdtutorials.com/esp32-i2c-communication-arduino-ide/
 //https://microcontrollerslab.com/esp32-external-interrupts-wake-up-deep-sleep/

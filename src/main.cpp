@@ -2,7 +2,7 @@
 #include "Board.h"
 #include "Config.h"
 #include "SerialMonitor.hpp"
-#include "Motion.hpp"
+// #include "Motion.hpp"
 #include "Battery.hpp"
 #ifdef ENABLE_AP
 #include "OTA.hpp"
@@ -30,7 +30,9 @@ void setup()
         default: SerialMon.printf("Wakeup was not caused by deep sleep: %d\n", wakeup_reason); break;
     }
 
+    #ifdef MOTION_MODULE
     Motion::Init();
+    #endif
     Battery::Init();
     #ifdef ENABLE_AP
     OTA::Init();
@@ -44,7 +46,9 @@ void setup()
 void loop()
 {
     SerialMonitor::Loop();
+    #ifdef MOTION_MODULE
     Motion::Loop();
+    #endif
     Battery::Loop(); //TODO: Possibly move this after the publish so we can send one update anyway?
     #ifdef ENABLE_AP
     OTA::Loop();
