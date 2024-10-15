@@ -37,8 +37,10 @@ public:
         std::map<String, std::variant<String, int, uint, bool, long, ulong, double>> data;
         bool sendingEstimatedData = false;
 
+        //TODO: Send my own accuracy result codes.
         if (GPS::Gps.location.isUpdated())
         {
+            //TODO: Sample data and send a more accurate result.
             data.insert({"loc_lat", GPS::Gps.location.lat()});
             data.insert({"loc_lng", GPS::Gps.location.lng()});
             // data.insert({"loc_quality", GPS::Gps.location.FixQuality()});
