@@ -1,10 +1,17 @@
 #include <Arduino.h>
 #include "Board.h"
 #include "Config.h"
+
+#if defined(MPU_INT) && defined(MPU_SDA) && defined(MPU_SCL)
+#define MOTION_MODULE
+#endif
+
 #include "SerialMonitor.hpp"
-// #include "Motion.hpp"
+#ifdef MOTION_MODULE
+#include "Motion.hpp"
+#endif
 #include "Battery.hpp"
-#ifdef ENABLE_AP
+#ifdef AP_SSID
 #include "OTA.hpp"
 #endif
 #include "GPS.hpp"
@@ -35,7 +42,7 @@ void setup()
     Motion::Init();
     #endif
     Battery::Init();
-    #ifdef ENABLE_AP
+    #ifdef AP_SSID
     OTA::Init();
     #endif
     GPS::Init();
@@ -52,7 +59,7 @@ void loop()
     Motion::Loop();
     #endif
     Battery::Loop(); //TODO: Possibly move this after the publish so we can send one update anyway?
-    #ifdef ENABLE_AP
+    #ifdef AP_SSID
     OTA::Loop();
     #endif
     // GPS::Loop();

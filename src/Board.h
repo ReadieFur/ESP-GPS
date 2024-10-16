@@ -28,6 +28,6 @@
 #ifndef TINY_GSM_MODEM_A7670
 #define TINY_GSM_MODEM_A7670
 #endif
-#define MPU_INT                         32
-#define MPU_SDA                         34
-#define MPU_SCL                         18
+// #define MPU_INT                         32
+// #define MPU_SDA                         34
+// #define MPU_SCL                         18
