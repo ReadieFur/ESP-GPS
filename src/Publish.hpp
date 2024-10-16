@@ -3,30 +3,11 @@
 #include <map>
 #include <variant>
 #include <ArduinoJson.h>
-#include "GPS.hpp"
+#include "Location.hpp"
 #include "Battery.hpp"
 
 class Publish
 {
-private:
-    static bool GetGsmLocation(float& latitude, float& longitude, int& altitude)
-    {
-        //TODO: Possibly use the gsm_rssi to improve/decrease the radius the discovered value could possibly fall under.
-        String gsmLocation = GSM::Modem.getGsmLocation();
-        
-        int firstComma = gsmLocation.indexOf(',');
-        int secondComma = gsmLocation.indexOf(',', firstComma + 1);
-
-        if (firstComma == -1 || secondComma == -1)
-            return false;
-
-        latitude = gsmLocation.substring(0, firstComma).toFloat();
-        longitude = gsmLocation.substring(firstComma + 1, secondComma).toFloat();
-        altitude = gsmLocation.substring(secondComma + 1).toInt();
-
-        return true;
-    }
-
 public:
     static void Init() {}
 
@@ -38,36 +19,22 @@ public:
         bool sendingEstimatedData = false;
 
         //TODO: Send my own accuracy result codes.
-        if (GPS::Gps.location.isUpdated())
+
+        double latitude, longitude;
+        float confidence;
+        Location::ELocationType locationType;
+        if (Location::GetLocation(latitude, longitude, confidence, locationType))
         {
             //TODO: Sample data and send a more accurate result.
-            data.insert({"loc_lat", GPS::Gps.location.lat()});
-            data.insert({"loc_lng", GPS::Gps.location.lng()});
+            data.insert({"loc_lat", latitude});
+            data.insert({"loc_lng", longitude});
             // data.insert({"loc_quality", GPS::Gps.location.FixQuality()});
             // SerialMon.printf("FixMode:%i\n", GPS::Gps.location.FixMode());
             //From my tests the FixQuality and FixMode are reading wrong on this device, so I will manually send the quality as GPS mode for now.
             //TODO: Figure out why the above isn't working correctly.
-            data.insert({"loc_quality", 1});
-            data.insert({"loc_age", GPS::Gps.location.age()});
-        }
-        else if (GPS::Gps.location.age() > 60 * 1000) //If the GPS location hasn't been updated in x multiple of the update interval, send the estimated location from the modem.
-        {
-            sendingEstimatedData = true;
-
-            float lat, lng;
-            int alt;
-            if (!GetGsmLocation(lat, lng, alt))
-            {
-                SerialMon.println("Failed to send data. Reason: Location invalid.");
-                return false;
-            }
-
-            data.insert({"loc_lat", lat});
-            data.insert({"loc_lng", lng});
-            data.insert({"loc_quality", 8}); //See TinyGPSLocation::Quality.
-            data.insert({"loc_age", GPS::Gps.location.age()});
-            data.insert({"alt", alt});
-            data.insert({"alt_age", GPS::Gps.altitude.age()});
+            data.insert({"loc_confidence", confidence});
+            data.insert({"loc_type", locationType});
+            // data.insert({"loc_age", GPS::Gps.location.age()});
         }
         else
         {
@@ -93,11 +60,11 @@ public:
         //     data.insert({"deg_age", GPS::Gps.course.age()});
         // }
 
-        if (!sendingEstimatedData && GPS::Gps.altitude.isValid())
-        {
-            data.insert({"alt", GPS::Gps.altitude.meters()});
-            data.insert({"alt_age", GPS::Gps.altitude.age()});
-        }
+        // if (!sendingEstimatedData && GPS::Gps.altitude.isValid())
+        // {
+        //     data.insert({"alt", GPS::Gps.altitude.meters()});
+        //     data.insert({"alt_age", GPS::Gps.altitude.age()});
+        // }
 
         // if (GPS::Gps.satellites.isValid())
         // {

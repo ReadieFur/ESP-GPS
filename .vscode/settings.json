@@ -68,6 +68,8 @@
         "coroutine": "cpp",
         "set": "cpp",
         "stop_token": "cpp",
-        "queue": "cpp"
+        "queue": "cpp",
+        "bitset": "cpp",
+        "regex": "cpp"
     }
 }

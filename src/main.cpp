@@ -8,6 +8,7 @@
 #include "OTA.hpp"
 #endif
 #include "GPS.hpp"
+#include "Location.hpp"
 #include "GSM.hpp"
 #include "MQTT.hpp"
 #include "Publish.hpp"
@@ -39,6 +40,7 @@ void setup()
     #endif
     GPS::Init();
     GSM::Init();
+    Location::Init();
     MQTT::Init();
     Publish::Init();
 }
@@ -53,32 +55,24 @@ void loop()
     #ifdef ENABLE_AP
     OTA::Loop();
     #endif
-    GPS::Loop();
+    // GPS::Loop();
+    Location::Loop(); //TODO: Rerun this if it fails.
 
-    //If we fail upon first boot, retry a few times.
-    bool connectFailed = true;
+    //If we fail to send data, retry a few times.
+    bool failed = true;
     do
     {
-        if (!GSM::Loop() || !MQTT::Loop())
+        if (!GSM::Loop() || !MQTT::Loop() || !Publish::Loop())
         {
             delay(100);
             retryAttempts++;
             continue;
         }
 
-        connectFailed = false;
+        failed = false;
     }
-    while (retryAttempts != -1 && connectFailed && retryAttempts < 10);
-    retryAttempts = -1;
-    if (connectFailed)
-    {
-        int sleepDuration = Battery::GetSleepDuration() / 2;
-        SerialMon.printf("Fail, sleeping for: %ims\n", sleepDuration);
-        Battery::LightSleep(sleepDuration);
-        return;
-    }
-    
-    if (!Publish::Loop())
+    while (failed && retryAttempts < 10);
+    if (failed)
     {
         int sleepDuration = Battery::GetSleepDuration() / 2;
         SerialMon.printf("Fail, sleeping for: %ims\n", sleepDuration);
