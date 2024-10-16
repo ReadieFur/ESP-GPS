@@ -78,8 +78,11 @@ public:
         //     data.insert({"hdop_age", GPS::Gps.satellites.age()});
         // }
 
-        data.insert({"bat_vlt", Battery::GetVoltage()});
-        data.insert({"bat_state", Battery::State});
+        uint32_t batteryVoltageMv;
+        Battery::EState batteryState;
+        Battery::GetStatus(&batteryVoltageMv, &batteryState);
+        data.insert({"bat_vlt", batteryVoltageMv});
+        data.insert({"bat_state", batteryState});
 
         // data.insert({"gsm_op", GSM::Modem.getOperator()});
         // data.insert({"gsm_rssi", GSM::Modem.getSignalQuality()});

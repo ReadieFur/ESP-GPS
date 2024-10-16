@@ -41,7 +41,9 @@ private:
 public:
     static void Init()
     {
-        if (Battery::State != Battery::EState::Charging)
+        Battery::EState batteryState;
+        Battery::GetStatus(nullptr, &batteryState);
+        if (batteryState != Battery::EState::Charging)
         {
             // WiFi.setSleep(WIFI_PS_MAX_MODEM); //Not sure if this is needed.
             WiFi.mode(WIFI_OFF);

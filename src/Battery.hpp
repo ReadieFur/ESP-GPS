@@ -10,16 +10,6 @@
 
 class Battery
 {
-private:
-    static void DeepSleep(uint32_t ms)
-    {
-        //TODO: Turn off the GPS module.
-        GSM::Modem.poweroff();
-        esp_sleep_enable_timer_wakeup(ms * 1000);
-        esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
-        esp_deep_sleep_start();
-    }
-
 public:
     enum EState
     {
@@ -29,38 +19,45 @@ public:
         Discharging_Critical
     };
 
-    static EState State;
+private:
+    static uint32_t _voltage;
+    static EState _state;
 
+public:
     static void Init()
     {
-        //Disable the built in WiFi modem 
-
-        uint32_t batteryVoltageMv = GetVoltage();
+        UpdateVoltage();
         //If the battery level is lower than 3.6V, the system will continue to sleep and wake up after one hour to continue testing.
-        if (batteryVoltageMv < BATTERY_CRIT_VOLTAGE)
+        if (_state == EState::Discharging_Critical)
         {
-            SerialMon.printf("Battery voltage is too low ,%umv, entering sleep mode\n", batteryVoltageMv);
+            SerialMon.printf("Battery voltage is too low ,%umv, entering sleep mode\n", _voltage);
             DeepSleep(BATTERY_CRIT_SLEEP);
         }
-        SerialMon.printf("Battery voltage is %umv\n", batteryVoltageMv);
+        SerialMon.printf("Battery voltage is %umv\n", _voltage);
     }
 
     static void Loop()
     {
-        uint32_t batteryVoltageMv = GetVoltage();
+        UpdateVoltage();
         //If the battery level is lower than 3.6V, the system will continue to sleep and wake up after x period of time continue testing.
-        if (batteryVoltageMv < BATTERY_CRIT_VOLTAGE)
+        if (_state == EState::Discharging_Critical)
         {
-            SerialMon.printf("Battery voltage is low ,%umv, entering sleep mode\n", batteryVoltageMv);
+            SerialMon.printf("Battery voltage is low ,%umv, entering sleep mode\n", _voltage);
             DeepSleep(BATTERY_CRIT_SLEEP);
         }
-        else if (batteryVoltageMv < BATTERY_LOW_VOLTAGE)
-        {
-            SerialMon.println("Battery warning voltage level reached.");
-        }
+        // else if (_state < EState::Discharging_Low)
+        // {
+        //     SerialMon.println("Battery warning voltage level reached.");
+        // }
     }
 
-    static uint32_t GetVoltage()
+    static void GetStatus(uint32_t* outVoltage = nullptr, EState* outState = nullptr)
+    {
+        *outVoltage = _voltage;
+        *outState = _state;
+    }
+
+    static void UpdateVoltage(uint32_t* outVoltage = nullptr, EState* outState = nullptr)
     {
         //Calculate the average power data.
         std::vector<uint32_t> data;
@@ -78,22 +75,24 @@ public:
         int sum = std::accumulate(data.begin(), data.end(), 0);
         double average = static_cast<double>(sum) / data.size();
         average *= 2;
+        _voltage = average;
 
-        if (average > 4100)
-            State = EState::Charging;
-        else if (average > BATTERY_LOW_VOLTAGE)
-            State = Discharging;
-        else if (average > BATTERY_CRIT_VOLTAGE)
-            State = Discharging_Low;
+        if (_voltage >= BATTERY_CHG_VOLTAGE_HIGH || _voltage < BATTERY_CHG_VOLTAGE_LOW)
+            _state = EState::Charging;
+        else if (_voltage >= BATTERY_LOW_VOLTAGE)
+            _state = Discharging;
+        else if (_voltage >= BATTERY_CRIT_VOLTAGE)
+            _state = Discharging_Low;
         else
-            State = Discharging_Critical;
+            _state = Discharging_Critical;
 
-        return average;
+        *outVoltage = _voltage;
+        *outState = _state;
     }
 
     static uint GetSleepDuration()
     {
-        switch (State)
+        switch (_state)
         {
         case EState::Charging:
             return BATTERY_CHRG_INTERVAL;
@@ -117,6 +116,16 @@ public:
         esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
         esp_light_sleep_start();
     }
+
+    static void DeepSleep(uint32_t ms)
+    {
+        //TODO: Turn off the GPS module.
+        GSM::Modem.poweroff();
+        esp_sleep_enable_timer_wakeup(ms * 1000);
+        esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
+        esp_deep_sleep_start();
+    }
 };
 
-Battery::EState Battery::State = Battery::EState::Discharging;
+uint32_t Battery::_voltage = 0;
+Battery::EState Battery::_state = Battery::EState::Discharging;
