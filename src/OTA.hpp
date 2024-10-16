@@ -7,6 +7,7 @@
 #include <WebServer.h>
 #include <ElegantOTA.h>
 #include "Config.h"
+#include "Battery.hpp"
 
 class OTA
 {
@@ -40,7 +41,13 @@ private:
 public:
     static void Init()
     {
-        SerialMon.begin(115200);
+        if (Battery::State != Battery::EState::Charging)
+        {
+            // WiFi.setSleep(WIFI_PS_MAX_MODEM); //Not sure if this is needed.
+            WiFi.mode(WIFI_OFF);
+            return;
+        }
+
         WiFi.mode(WIFI_AP);
         WiFi.softAP(AP_SSID, emptyString, 1, 1);
 
@@ -54,6 +61,12 @@ public:
 
     static void Loop()
     {
+        // if (Battery::State != Battery::EState::Charging)
+        // {
+        //     WiFi.mode(WIFI_OFF);
+        //     return;
+        // }
+
         delay(2000); //Allow time for a client to connect.
         server.handleClient();
         while (WiFi.softAPgetStationNum() > 0)
