@@ -30,8 +30,11 @@ public:
     {
         SerialAT.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
 
-        //Power on modem.
+        //Start modem.
         pinMode(MODEM_POWERON, OUTPUT);
+        //Hard reset modem (turn off and on again).
+        digitalWrite(MODEM_POWERON, LOW);
+        vTaskDelay(pdMS_TO_TICKS(500));
         digitalWrite(MODEM_POWERON, HIGH);
 
         //Reset modem.
