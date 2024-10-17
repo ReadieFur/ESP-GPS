@@ -53,8 +53,8 @@ public:
 
     static void GetStatus(uint32_t* outVoltage = nullptr, EState* outState = nullptr)
     {
-        *outVoltage = _voltage;
-        *outState = _state;
+        if (outVoltage != nullptr) *outVoltage = _voltage;
+        if (outState != nullptr) *outState = _state;
     }
 
     static void UpdateVoltage(uint32_t* outVoltage = nullptr, EState* outState = nullptr)
@@ -86,8 +86,8 @@ public:
         else
             _state = Discharging_Critical;
 
-        *outVoltage = _voltage;
-        *outState = _state;
+        if (outVoltage != nullptr) *outVoltage = _voltage;
+        if (outState != nullptr) *outState = _state;
     }
 
     static uint GetSleepDuration()
