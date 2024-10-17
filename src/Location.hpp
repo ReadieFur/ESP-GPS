@@ -69,7 +69,7 @@ public:
                 tm_hour: GPS::Gps.time.hour(),
                 tm_mday: GPS::Gps.date.day(),
                 tm_mon: GPS::Gps.date.month() - 1,
-                tm_year: GPS::Gps.date.month() - 1900
+                tm_year: GPS::Gps.date.year() - 1900
             };
             _location.timestamp = std::mktime(&timeInfo);
 
