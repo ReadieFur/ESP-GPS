@@ -12,6 +12,6 @@ action:
       attributes:
         gps_accuracy: "{{ trigger.payload_json.loc_confidence }}"
         gps_mode: "{{ ['Invalid', 'GPS', 'GSM'][trigger.payload_json.loc_type] }}"
-        last_seen: "{{ trigger.payload_json.timestamp | timestamp_local() }}"
+        last_seen: "{{ trigger.payload_json.timestamp | timestamp_local }}"
         battery: "{{ trigger.payload_json.bat_vlt / 1000 }}v"
         battery_state: "{{ ['Charging', 'Discharging', 'Low', 'Critical'][trigger.payload_json.bat_state] }}"
