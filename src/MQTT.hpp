@@ -5,6 +5,7 @@
 #include <PubSubClient.h>
 #include <Client.h>
 #include "GSM.hpp"
+#include "API.hpp"
 
 class MQTT
 {
@@ -20,7 +21,11 @@ private:
         SerialMon.write(payload, len);
         SerialMon.println();
 
-        //TODO: API.
+        API::ProcessMessage(String(reinterpret_cast<const char*>(payload), len));
+
+        // //Reading the source of the MQTT library the payload pointer is never freed so I will do that here manually.
+        // free(payload);
+        //Ignore the above, the library stores everything in a complex memory structure that it does manage.
     }
 
     static bool Connect()

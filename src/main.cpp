@@ -18,6 +18,7 @@
 #include "Location.hpp"
 #include "GSM.hpp"
 #include "MQTT.hpp"
+#include "API.hpp"
 #include "Publish.hpp"
 
 short retryAttempts = 0;
@@ -38,6 +39,7 @@ void setup()
         default: SerialMon.printf("Wakeup was not caused by deep sleep: %d\n", wakeup_reason); break;
     }
 
+    API::Init();
     #ifdef MOTION_MODULE
     Motion::Init();
     #endif
@@ -62,6 +64,7 @@ void setup()
 void loop()
 {
     SerialMonitor::Loop();
+    API::Loop();
     #ifdef MOTION_MODULE
     Motion::Loop();
     #endif
