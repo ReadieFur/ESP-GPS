@@ -63,6 +63,7 @@ public:
         std::vector<uint32_t> data;
         for (int i = 0; i < 30; ++i)
         {
+            //TODO: Detect that the battery is charging if the average of these samples keeps increasing steadily.
             uint32_t val = analogReadMilliVolts(BOARD_BAT_ADC);
             //SerialMon.printf("analogReadMilliVolts : %u mv \n", val * 2);
             data.push_back(val);
