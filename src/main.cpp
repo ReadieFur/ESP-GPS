@@ -49,8 +49,9 @@ void setup()
     if (!GSM::Init())
     {
         int sleepDuration = Battery::GetSleepDuration() / 2;
-        SerialMon.printf("Fail, sleeping for: %ims\n", sleepDuration);
-        Battery::LightSleep(sleepDuration);
+        SerialMon.printf("Fail, deep sleeping for: %ims\n", sleepDuration);
+        //Deep sleep will cause the program to restart, which we want if this fails.
+        Battery::DeepSleep(sleepDuration);
         return;
     }
     Location::Init();
@@ -88,11 +89,13 @@ void loop()
     if (failed)
     {
         int sleepDuration = Battery::GetSleepDuration() / 2;
-        SerialMon.printf("Fail, sleeping for: %ims\n", sleepDuration);
-        Battery::LightSleep(sleepDuration);
+        SerialMon.printf("Fail, deep sleeping for: %ims\n", sleepDuration);
+        //Only light sleep if we had a successful run.
+        //TODO: Change this so that we only enter deep sleep of the modem stops responding as we can also fail here if there is a poor connection, which is not critical.
+        Battery::DeepSleep(sleepDuration);
         return;
     }
 
-    SerialMon.printf("Success, sleeping for: %ims\n", Battery::GetSleepDuration());
+    SerialMon.printf("Success, light sleeping for: %ims\n", Battery::GetSleepDuration());
     Battery::LightSleep(Battery::GetSleepDuration());
 }

@@ -10,17 +10,8 @@ action:
         - "{{ trigger.payload_json.loc_lat }}"
         - "{{ trigger.payload_json.loc_lng }}"
       attributes:
-        gps_accuracy: >-
-          {{ [0, 100, 15, 3, 1.25, 2.5, 250, 1000,
-          2000][trigger.payload_json.loc_quality] }}
-        altitude: "{{ trigger.payload_json.alt }}m"
-        battery: "{{ trigger.payload_json.bat_vlt }}mV"
-        gps_mode: >-
-          {{ ['Invalid', 'GPS', 'DGPS', 'PPS', 'RTK', 'FloatRTK', 'Estimated',
-          'Manual', 'Simulated'][trigger.payload_json.loc_quality] }}
-        last_seen: >
-          {{ (trigger.payload_json.date | string)[4:6] }}-{{
-          (trigger.payload_json.date | string)[2:4] }}-{{ (trigger.payload_json.date
-          | string)[:2] }}T{{ (trigger.payload_json.time | string)[:2] }}:{{
-          (trigger.payload_json.time | string)[2:4] }}:{{ (trigger.payload_json.time
-          | string)[4:6] }}Z
+        gps_accuracy: "{{ trigger.payload_json.loc_confidence }}"
+        gps_mode: "{{ ['Invalid', 'GPS', 'GSM'][trigger.payload_json.loc_type] }}"
+        last_seen: "{{ trigger.payload_json.timestamp | timestamp_local() }}"
+        battery: "{{ trigger.payload_json.bat_vlt / 1000 }}v"
+        battery_state: "{{ ['Charging', 'Discharging', 'Low', 'Critical'][trigger.payload_json.bat_state] }}"

@@ -5,6 +5,8 @@
 #include <ArduinoJson.h>
 #include "Location.hpp"
 #include "Battery.hpp"
+#include <chrono>
+#include <ctime>
 
 class Publish
 {
@@ -13,27 +15,23 @@ public:
 
     static bool Loop()
     {
-        SerialMon.println("Preparing to send data...");
+        SerialMon.println("Sending data...");
 
         std::map<String, std::variant<String, int, uint, bool, long, ulong, double>> data;
         bool sendingEstimatedData = false;
 
         //TODO: Send my own accuracy result codes.
 
-        double latitude, longitude;
-        float confidence;
-        Location::ELocationType locationType;
-        if (Location::GetLocation(latitude, longitude, confidence, locationType))
+        Location::SLocation location;
+        if (Location::GetLocation(location))
         {
             //TODO: Sample data and send a more accurate result.
-            data.insert({"loc_lat", latitude});
-            data.insert({"loc_lng", longitude});
-            // data.insert({"loc_quality", GPS::Gps.location.FixQuality()});
-            // SerialMon.printf("FixMode:%i\n", GPS::Gps.location.FixMode());
-            //From my tests the FixQuality and FixMode are reading wrong on this device, so I will manually send the quality as GPS mode for now.
-            //TODO: Figure out why the above isn't working correctly.
-            data.insert({"loc_confidence", confidence});
-            data.insert({"loc_type", locationType});
+            data.insert({"loc_lat", location.latitude});
+            data.insert({"loc_lng", location.longitude});
+            // data.insert({"loc_alt", location.altitude});
+            data.insert({"loc_confidence", location.confidence});
+            data.insert({"loc_type", location.type});
+            data.insert({"timestamp", location.timestamp});
             // data.insert({"loc_age", GPS::Gps.location.age()});
         }
         else
@@ -41,12 +39,6 @@ public:
             SerialMon.println("Failed to send data. Reason: GPS location not updated.");
             return false;
         }
-
-        if (GPS::Gps.date.isValid())
-            data.insert({"date", GPS::Gps.date.value()});
-
-        if (GPS::Gps.time.isValid())
-            data.insert({"time", GPS::Gps.time.value()});
 
         // if (GPS::Gps.speed.isValid())
         // {
@@ -92,8 +84,6 @@ public:
         for (auto &&kvp : data)
             //std::visit automatically casts the variant type back to it's original data type.
             std::visit([&](auto&& arg) { json[kvp.first] = arg; }, kvp.second);
-
-        SerialMon.println("Sending data...");
 
         String mqttPayload;
         serializeJson(json, mqttPayload);
