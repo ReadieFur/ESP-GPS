@@ -46,7 +46,13 @@ void setup()
     OTA::Init();
     #endif
     GPS::Init();
-    GSM::Init();
+    if (!GSM::Init())
+    {
+        int sleepDuration = Battery::GetSleepDuration() / 2;
+        SerialMon.printf("Fail, sleeping for: %ims\n", sleepDuration);
+        Battery::LightSleep(sleepDuration);
+        return;
+    }
     Location::Init();
     MQTT::Init();
     Publish::Init();

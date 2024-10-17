@@ -26,7 +26,7 @@ public:
     static TinyGsm Modem;
     static TinyGsmClient Client;
 
-    static void Init()
+    static bool Init()
     {
         SerialAT.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
 
@@ -39,22 +39,23 @@ public:
         digitalWrite(MODEM_RESET, LOW);
         pinMode(MODEM_PWRKEY, OUTPUT);
         digitalWrite(MODEM_PWRKEY, LOW);
-        delay(100);
+        vTaskDelay(pdMS_TO_TICKS(100));
         digitalWrite(MODEM_PWRKEY, HIGH);
-        delay(1000);
+        vTaskDelay(pdMS_TO_TICKS(1000));
         digitalWrite(MODEM_PWRKEY, LOW);
 
         //Set ring pin input.
         pinMode(MODEM_RING, INPUT_PULLUP);
 
         SerialMon.println("Start modem...");
-        delay(3000);
+        //Wait for modem to be ready.
+        vTaskDelay(pdMS_TO_TICKS(3000));
         //Restart takes quite some time, to skip it, call init() instead of restart().
         DBG("Initializing modem...");
         if (!Modem.init())
         {
-            DBG("Failed to restart modem, delaying 10s and retrying");
-            return;
+            DBG("Failed to restart modem.");
+            return false;
         }
 
         String name = Modem.getModemName();
@@ -73,8 +74,7 @@ public:
         if (!Modem.waitForNetwork())
         {
             SerialMon.println(" fail");
-            delay(10000);
-            return;
+            return true;
         }
         SerialMon.println(" success");
 
@@ -88,14 +88,15 @@ public:
         if (!Modem.gprsConnect(MODEM_APN, MODEM_USERNAME, MODEM_PASSWORD))
         {
             SerialMon.println(" fail");
-            delay(10000);
-            return;
+            return true;
         }
         SerialMon.println(" success");
 
         if (Modem.isGprsConnected())
             SerialMon.println("GPRS connected");
         #endif
+
+        return true;
     }
 
     static bool Loop()
