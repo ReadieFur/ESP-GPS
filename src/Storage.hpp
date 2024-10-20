@@ -7,16 +7,20 @@
 #include "Board.h"
 #include "Config.h"
 #include <mutex>
+#include <list>
+#include <algorithm>
 
 class Storage
 {
 private:
     static const char* _filename;
+    static std::list<const char*> _sensitiveEntries;
 
     static bool _initialized;
     static std::mutex _mutex;
 
 public:
+
     static JsonDocument Cache;
 
     static bool Init()
@@ -123,6 +127,11 @@ public:
         ESP.restart();
     }
 
+    static bool IsSensitive(const char* key)
+    {
+        return std::find(_sensitiveEntries.begin(), _sensitiveEntries.end(), key) != _sensitiveEntries.end();
+    }
+
     // template<typename T>
     // T Get(const char* key)
     // {
@@ -133,6 +142,11 @@ public:
 };
 
 const char* Storage::_filename = "/config.json";
+std::list<const char*> Storage::_sensitiveEntries =
+{
+    nameof(MQTT_PASSWORD),
+    nameof(MODEM_PASSWORD)
+};
 
 bool Storage::_initialized = false;
 JsonDocument Storage::Cache;
