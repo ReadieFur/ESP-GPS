@@ -90,7 +90,7 @@ private:
             break;
         }
 
-        SerialMon.printf("The battery voltage is %imV and is currently in a %s state.\n", voltage, stateString);
+        SerialMon.printf("The battery voltage is %imV and %s.\n", voltage, state);
 
         return 200;
     }
