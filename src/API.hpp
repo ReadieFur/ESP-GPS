@@ -71,16 +71,26 @@ private:
         Battery::UpdateVoltage(&voltage, &state);
 
         String stateString;
-        if (state == Battery::EState::Charging)
+        switch (state)
+        {
+        case Battery::EState::Charging:
             stateString = "charging";
-        else if (state == Battery::EState::Discharging)
+            break;
+        case Battery::EState::Discharging:
             stateString = "discharging";
-        else if (state == Battery::EState::Discharging_Low)
+            break;
+        case Battery::EState::Discharging_Low:
             stateString = "low";
-        else if (state == Battery::EState::Discharging_Critical)
+            break;
+        case Battery::EState::Discharging_Critical:
             stateString = "critical";
+            break;
+        default:
+            stateString = "in an unkown state"; //Shouldn't be reached.
+            break;
+        }
 
-        SerialMon.printf("The battery voltage is %imV and is currently %s.", voltage, state);
+        SerialMon.printf("The battery voltage is %imV and is currently in a %s state.\n", voltage, stateString);
 
         return 200;
     }
