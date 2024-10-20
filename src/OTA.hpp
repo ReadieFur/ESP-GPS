@@ -51,7 +51,7 @@ public:
         }
 
         WiFi.mode(WIFI_AP);
-        WiFi.softAP(AP_SSID, emptyString, 1, 1);
+        WiFi.softAP(GetConfig(const char*, AP_SSID), emptyString, 1, 1);
 
         ElegantOTA.begin(&server);
         ElegantOTA.onStart(OnOTAStart);

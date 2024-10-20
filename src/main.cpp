@@ -7,6 +7,7 @@
 #endif
 
 #include "SerialMonitor.hpp"
+#include "Storage.hpp"
 #ifdef MOTION_MODULE
 #include "Motion.hpp"
 #endif
@@ -94,6 +95,7 @@ void setup()
 {
     SerialMonitor::Init();
     LogWakeReason();
+    Storage::Init();
     API::Init();
     #ifdef MOTION_MODULE
     Motion::Init();

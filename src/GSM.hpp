@@ -3,6 +3,7 @@
 #include "Board.h"
 #include "Config.h"
 #include <Client.h>
+#include "Storage.hpp"
 
 // #ifdef DUMP_AT_COMMANDS
 #define TINY_GSM_DEBUG SerialMon
@@ -69,8 +70,9 @@ public:
 
         #if TINY_GSM_USE_GPRS
         //Unlock your SIM card with a PIN if needed.
-        if (MODEM_PIN && Modem.getSimStatus() != 3)
-            Modem.simUnlock(MODEM_PIN);
+        const char* pin = GetConfig(const char*, MODEM_PIN);
+        if (pin && Modem.getSimStatus() != 3)
+            Modem.simUnlock(pin);
         #endif
 
         SerialMon.print("Waiting for network...");
@@ -87,8 +89,11 @@ public:
         #if TINY_GSM_USE_GPRS
         //GPRS connection parameters are usually set after network registration.
         SerialMon.print(F("Connecting to "));
-        SerialMon.print(MODEM_APN);
-        if (!Modem.gprsConnect(MODEM_APN, MODEM_USERNAME, MODEM_PASSWORD))
+        const char *apn = GetConfig(const char*, MODEM_APN),
+            *username = GetConfig(const char*, MODEM_USERNAME),
+            *password = GetConfig(const char*, MODEM_PASSWORD);
+        SerialMon.print(apn);
+        if (!Modem.gprsConnect(apn, username, password))
         {
             SerialMon.println(" fail");
             return true;

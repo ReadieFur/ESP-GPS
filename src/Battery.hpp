@@ -31,7 +31,7 @@ public:
         if (_state == EState::Discharging_Critical)
         {
             SerialMon.printf("Battery voltage is too low ,%umv, entering sleep mode\n", _voltage);
-            DeepSleep(BATTERY_CRIT_SLEEP);
+            DeepSleep(GetConfig(int, BATTERY_CRIT_SLEEP));
         }
         SerialMon.printf("Battery voltage is %umv\n", _voltage);
     }
@@ -43,7 +43,7 @@ public:
         if (_state == EState::Discharging_Critical)
         {
             SerialMon.printf("Battery voltage is low ,%umv, entering sleep mode\n", _voltage);
-            DeepSleep(BATTERY_CRIT_SLEEP);
+            DeepSleep(GetConfig(int, BATTERY_CRIT_SLEEP));
         }
         // else if (_state < EState::Discharging_Low)
         // {
@@ -96,16 +96,16 @@ public:
         switch (_state)
         {
         case EState::Charging:
-            return BATTERY_CHRG_INTERVAL;
+            return GetConfig(int, BATTERY_CHG_INTERVAL);
         case EState::Discharging:
-            return BATTERY_OK_INTERVAL;
+            return GetConfig(int, BATTERY_OK_INTERVAL);
         case EState::Discharging_Low:
-            return BATTERY_LOW_INTERVAL;
+            return GetConfig(int, BATTERY_LOW_INTERVAL);
         case EState::Discharging_Critical:
-            return BATTERY_CRIT_SLEEP;
+            return GetConfig(int, BATTERY_CRIT_SLEEP);
         default:
             //Shouldn't occur but assume low battery.
-            return BATTERY_LOW_INTERVAL;
+            return GetConfig(int, BATTERY_LOW_INTERVAL);
         }
     }
 

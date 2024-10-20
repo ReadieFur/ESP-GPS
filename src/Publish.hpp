@@ -90,7 +90,7 @@ public:
 
         String mqttPayload;
         serializeJson(json, mqttPayload);
-        if (!MQTT::Mqtt.publish(MQTT::PublishTopic, mqttPayload.c_str()))
+        if (!MQTT::Mqtt.publish(MQTT::PublishTopic.c_str(), mqttPayload.c_str()))
         {
             SerialMon.print("Failed to send MQTT message: ");
             SerialMon.println(MQTT::Mqtt.state());

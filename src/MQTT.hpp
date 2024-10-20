@@ -6,12 +6,13 @@
 #include <Client.h>
 #include "GSM.hpp"
 #include "API.hpp"
+#include <Wstring.h>
 
 class MQTT
 {
 private:
     static uint32_t _lastReconnectAttempt;
-    static const char* _subscribeTopic;
+    static String _subscribeTopic;
 
     static void Callback(char* topic, byte* payload, uint len)
     {
@@ -31,10 +32,10 @@ private:
     static bool Connect()
     {
         SerialMon.print("Connecting to ");
-        SerialMon.print(MQTT_BROKER);
+        SerialMon.print(GetConfig(const char*, MQTT_BROKER));
 
         //Connect to MQTT broker.
-        bool status = Mqtt.connect(MQTT_CLIENT_ID, MQTT_USERNAME, MQTT_PASSWORD);
+        bool status = Mqtt.connect(GetConfig(const char*, MQTT_CLIENT_ID), GetConfig(const char*, MQTT_USERNAME), GetConfig(const char*, MQTT_PASSWORD));
         if (status == false)
         {
             SerialMon.println(" fail");
@@ -43,19 +44,22 @@ private:
         SerialMon.println(" success");
 
         // Mqtt.publish(MQTT_TOPIC, "Connected");
-        Mqtt.subscribe(_subscribeTopic);
+        Mqtt.subscribe(_subscribeTopic.c_str());
 
         return Mqtt.connected();
     }
 
 public:
     static PubSubClient Mqtt;
-    static const char* PublishTopic;
+    static String PublishTopic;
 
     static void Init()
     {
+        _subscribeTopic = GetConfig(String, MQTT_TOPIC) + "/" + GetConfig(String, MQTT_CLIENT_ID) + "/api";
+        PublishTopic = GetConfig(String, MQTT_TOPIC) + "/" + GetConfig(String, MQTT_CLIENT_ID) + "/data";
+
         //MQTT broker setup.
-        Mqtt.setServer(MQTT_BROKER, MQTT_PORT);
+        Mqtt.setServer(GetConfig(const char*, MQTT_BROKER), GetConfig(int, MQTT_PORT));
         Mqtt.setCallback(Callback);
     }
 
@@ -84,6 +88,6 @@ public:
 };
 
 uint32_t MQTT::_lastReconnectAttempt = 0;
-const char* MQTT::_subscribeTopic = MQTT_TOPIC "/" MQTT_CLIENT_ID "/api";
+String MQTT::_subscribeTopic;
 PubSubClient MQTT::Mqtt(GSM::Client);
-const char* MQTT::PublishTopic = MQTT_TOPIC "/" MQTT_CLIENT_ID "/data";
+String MQTT::PublishTopic;
