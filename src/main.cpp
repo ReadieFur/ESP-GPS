@@ -101,7 +101,6 @@ void setup()
     Motion::Init();
     #endif
     Battery::Init();
-    }
     #ifdef AP_SSID
     OTA::Init();
     #endif
