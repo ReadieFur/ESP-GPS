@@ -1,7 +1,7 @@
 #pragma once
 
 #define nameof(n) #n
-#define Storage_SetDefault(kv) Cache[#kv] = kv
+#define Storage_SetDefault(kv) if (Cache[#kv].isNull()) Cache[#kv] = kv
 
 #include <SPIFFS.h>
 #include <ArduinoJson.h>
@@ -20,14 +20,8 @@ private:
     static bool _initialized;
     static std::mutex _mutex;
 
-public:
-
-    static JsonDocument Cache;
-
-    static bool Init()
+    static void SetDefaults()
     {
-        _mutex.lock();
-
         //Set all default values to fall back on incase storage initialization fails.
         Storage_SetDefault(MODEM_APN);
         Storage_SetDefault(MODEM_PIN);
@@ -46,9 +40,21 @@ public:
         Storage_SetDefault(MOTION_SENSITIVITY);
         Storage_SetDefault(MOTION_DURATION);
         Storage_SetDefault(AP_SSID);
+    }
+
+public:
+    static JsonDocument Cache;
+
+    static bool Init()
+    {
+        _mutex.lock();
 
         if (!SPIFFS.begin(true))
+        {
             SerialMon.println("Failed to initialize SPIFFS.");
+            SetDefaults();
+            return false;
+        }
 
         if (SPIFFS.exists(_filename))
         {
@@ -58,6 +64,7 @@ public:
                 file.close();
                 _mutex.unlock();
                 SerialMon.println("Failed to initialize config file.");
+                SetDefaults();
                 return false;
             }
 
@@ -69,9 +76,11 @@ public:
                 SerialMon.printf("Failed to load config file: %i", err);
                 return false;
             }
+            SetDefaults();
         }
         else
         {
+            SetDefaults();
             fs::File file = SPIFFS.open(_filename, FILE_WRITE);
             if (!file)
             {
