@@ -80,17 +80,14 @@ private:
             stateString = "discharging";
             break;
         case Battery::EState::Discharging_Low:
-            stateString = "discharging low";
+            stateString = "low";
             break;
         case Battery::EState::Discharging_Critical:
-            stateString = "discharging critical";
-            break;
-        default:
-            stateString = "in an unkown state"; //Shouldn't be reached.
+            stateString = "critical";
             break;
         }
 
-        SerialMon.printf("The battery voltage is %imV (%s).\n", voltage, stateString);
+        SerialMon.printf("The battery voltage is %imV and is currently %s.\n", voltage, stateString);
 
         return 200;
     }
