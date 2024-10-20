@@ -78,7 +78,6 @@ void DeviceSleep(uint durationMs, bool deepSleep)
 
 void LogWakeReason()
 {
-    //TODO: Check if wakeup source was from motion.
     esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
     switch (wakeup_reason)
     {
@@ -155,5 +154,6 @@ void loop()
     }
 
     SerialMon.print("Success, ");
+    //TODO: Deep sleep the device here but keep the GPS alive to maintain a fix.
     DeviceSleep(Battery::GetSleepDuration(), false);
 }
