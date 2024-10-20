@@ -38,6 +38,7 @@ public:
         Storage_SetDefault(MQTT_CLIENT_ID);
         Storage_SetDefault(MQTT_USERNAME);
         Storage_SetDefault(MQTT_PASSWORD);
+        Storage_SetDefault(MQTT_TOPIC);
         Storage_SetDefault(BATTERY_CRIT_SLEEP);
         Storage_SetDefault(BATTERY_LOW_INTERVAL);
         Storage_SetDefault(BATTERY_OK_INTERVAL);
