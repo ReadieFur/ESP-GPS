@@ -6,6 +6,7 @@
 #include <functional>
 #include "Storage.hpp"
 #include <algorithm>
+#include "Battery.hpp"
 
 class API
 {
@@ -63,6 +64,27 @@ private:
     static uint ConfigReset(String) { Storage::ResetAllConfig(); return 200; }
     #pragma endregion
 
+    static uint BatteryCheck(String)
+    {
+        uint32_t voltage;
+        Battery::EState state;
+        Battery::UpdateVoltage(&voltage, &state);
+
+        String stateString;
+        if (state == Battery::EState::Charging)
+            stateString = "charging";
+        else if (state == Battery::EState::Discharging)
+            stateString = "discharging";
+        else if (state == Battery::EState::Discharging_Low)
+            stateString = "low";
+        else if (state == Battery::EState::Discharging_Critical)
+            stateString = "critical";
+
+        SerialMon.printf("The battery voltage is %imV and is currently %s.", voltage, state);
+
+        return 200;
+    }
+
     static uint Reboot(String) { ESP.restart(); return 202; } //Does not return.
 
 public:
@@ -99,5 +121,6 @@ std::map<String, std::function<uint(String)>> API::_apiMethods =
     { "config set", API::ConfigSet },
     { "config get", API::ConfigGet },
     { "config reset", API::ConfigReset },
+    { "battery check", API::BatteryCheck },
     { "reboot", API::Reboot }
 };
