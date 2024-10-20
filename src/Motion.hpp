@@ -11,6 +11,7 @@
 #include <Wire.h>
 #include <esp_sleep.h>
 #include "Board.h"
+#include "Storage.hpp"
 
 class Motion
 {
@@ -43,8 +44,8 @@ public:
         // SerialMon.println("MPU6050 interrupt pin valid.");
 
         mpu.setHighPassFilter(MPU6050_HIGHPASS_0_63_HZ);
-        mpu.setMotionDetectionThreshold(8); //0-255, ideal range seems to be between 7 and 12.
-        mpu.setMotionDetectionDuration(200); //1 time unit is 10ms, so 2 seconds is 200 units.
+        mpu.setMotionDetectionThreshold(GetConfig(int, MOTION_SENSITIVITY)); //0-255, ideal range seems to be between 7 and 12.
+        mpu.setMotionDetectionDuration(GetConfig(int, MOTION_DURATION)); //1 time unit is 10ms, so 2 seconds is 200 units.
         mpu.setInterruptPinLatch(false); //Testing with auto interrupt clear, should be ok.
         mpu.setInterruptPinPolarity(false);
         mpu.setMotionInterrupt(true);

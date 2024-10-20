@@ -17,6 +17,9 @@
 #define BATTERY_OK_INTERVAL     1 * 60 * 1000       //How often (in milliseconds) to publish data to the MQTT broker when the battery is above the low threshold.
 #define BATTERY_CHRG_INTERVAL   5 * 1000            //How often (in milliseconds) to publish data to the MQTT broker when the battery is charging.
 
+#define MOTION_SENSITIVITY      8                   //How aggressive should motion be for the device to wake up (0-255).
+#define MOTION_DURATION         200                 //How long should the device be in motion before waking up (1 second = 100).
+
 #define AP_SSID                 "espgps"
 
 //Developer options.

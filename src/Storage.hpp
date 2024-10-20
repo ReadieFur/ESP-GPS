@@ -1,6 +1,7 @@
 #pragma once
 
 #define nameof(n) #n
+#define Storage_SetDefault(kv) Cache[#kv] = kv
 
 #include <SPIFFS.h>
 #include <ArduinoJson.h>
@@ -28,20 +29,22 @@ public:
         _mutex.lock();
 
         //Set all default values to fall back on incase storage initialization fails.
-        Cache[nameof(MODEM_APN)] = MODEM_APN;
-        Cache[nameof(MODEM_PIN)] = MODEM_PIN;
-        Cache[nameof(MODEM_USERNAME)] = MODEM_USERNAME;
-        Cache[nameof(MODEM_PASSWORD)] = MODEM_PASSWORD;
-        Cache[nameof(MQTT_BROKER)] = MQTT_BROKER;
-        Cache[nameof(MQTT_PORT)] = MQTT_PORT;
-        Cache[nameof(MQTT_CLIENT_ID)] = MQTT_CLIENT_ID;
-        Cache[nameof(MQTT_USERNAME)] = MQTT_USERNAME;
-        Cache[nameof(MQTT_PASSWORD)] = MQTT_PASSWORD;
-        Cache[nameof(BATTERY_CRIT_SLEEP)] = BATTERY_CRIT_SLEEP;
-        Cache[nameof(BATTERY_LOW_INTERVAL)] = BATTERY_LOW_INTERVAL;
-        Cache[nameof(BATTERY_OK_INTERVAL)] = BATTERY_OK_INTERVAL;
-        Cache[nameof(BATTERY_CHRG_INTERVAL)] = BATTERY_CHRG_INTERVAL;
-        Cache[nameof(AP_SSID)] = AP_SSID;
+        Storage_SetDefault(MODEM_APN);
+        Storage_SetDefault(MODEM_PIN);
+        Storage_SetDefault(MODEM_USERNAME);
+        Storage_SetDefault(MODEM_PASSWORD);
+        Storage_SetDefault(MQTT_BROKER);
+        Storage_SetDefault(MQTT_PORT);
+        Storage_SetDefault(MQTT_CLIENT_ID);
+        Storage_SetDefault(MQTT_USERNAME);
+        Storage_SetDefault(MQTT_PASSWORD);
+        Storage_SetDefault(BATTERY_CRIT_SLEEP);
+        Storage_SetDefault(BATTERY_LOW_INTERVAL);
+        Storage_SetDefault(BATTERY_OK_INTERVAL);
+        Storage_SetDefault(BATTERY_CHRG_INTERVAL);
+        Storage_SetDefault(MOTION_SENSITIVITY);
+        Storage_SetDefault(MOTION_DURATION);
+        Storage_SetDefault(AP_SSID);
 
         if (!SPIFFS.begin(true))
             SerialMon.println("Failed to initialize SPIFFS.");
