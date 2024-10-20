@@ -71,5 +71,8 @@
         "queue": "cpp",
         "bitset": "cpp",
         "regex": "cpp"
-    }
+    },
+    "cSpell.words": [
+        "touchpad"
+    ]
 }

@@ -22,7 +22,7 @@ private:
 public:
     static bool Init()
     {
-        if (i2c.begin(MPU_SDA, MPU_SCL))
+        if (!i2c.begin(MPU_SDA, MPU_SCL))
         {
             SerialMon.println("I2C failed.");
             return false;
@@ -33,20 +33,22 @@ public:
             SerialMon.println("MPU6050 not found.");
             return false;
         }
-        SerialMon.println("MPU6050 found.");
+        // SerialMon.println("MPU6050 found.");
 
-        if (esp_sleep_is_valid_wakeup_gpio((gpio_num_t)MPU_INT))
+        if (!esp_sleep_is_valid_wakeup_gpio((gpio_num_t)MPU_INT))
         {
             SerialMon.println("MPU6050 interrupt pin invalid for wakeup.");
             return false;
         }
+        // SerialMon.println("MPU6050 interrupt pin valid.");
 
-        //Clear any interrupts.
-        mpu.getEvent(nullptr, nullptr, nullptr);
+        //Clear any interrupts (library cannot take nullptr otherwise the program will crash).
+        sensors_event_t event = {};
+        mpu.getEvent(&event, &event, &event);
 
         mpu.setHighPassFilter(MPU6050_HIGHPASS_0_63_HZ);
-        mpu.setMotionDetectionThreshold(1);
-        mpu.setMotionDetectionDuration(20);
+        mpu.setMotionDetectionThreshold(8); //0-255, ideal range seems to be between 7 and 12.
+        mpu.setMotionDetectionDuration(200); //1 time unit is 10ms, so 2 seconds is 200 units.
         mpu.setInterruptPinLatch(true);
         mpu.setInterruptPinPolarity(false);
         mpu.setMotionInterrupt(true);
@@ -54,6 +56,7 @@ public:
         esp_sleep_enable_ext0_wakeup((gpio_num_t)MPU_INT, 1);
 
         setupFailed = false;
+        SerialMon.println("Successfully configured MPU6050.");
         return true;
     }
 
@@ -61,7 +64,8 @@ public:
     {
         if (setupFailed)
             return;
-        mpu.getEvent(nullptr, nullptr, nullptr);
+        sensors_event_t event = {};
+        mpu.getEvent(&event, &event, &event);
     }
 };
 

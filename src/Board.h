@@ -25,11 +25,11 @@
 #define SerialMon                       Serial
 #define BATTERY_CRIT_VOLTAGE            3550        //Shutdown voltage (in millivolts).
 #define BATTERY_LOW_VOLTAGE             3650        //Low voltage (in millivolts).
-#define BATTERY_CHG_VOLTAGE_HIGH        4100        //Voltage when plugged in and fully charged (in millivolts).
+#define BATTERY_CHG_VOLTAGE_HIGH        3825        //Voltage when plugged in and fully charged (in millivolts).
 #define BATTERY_CHG_VOLTAGE_LOW         300         //Voltage when plugged in with the battery disconnected (in millivolts).
 #ifndef TINY_GSM_MODEM_A7670
 #define TINY_GSM_MODEM_A7670
 #endif
-// #define MPU_INT                         32
-// #define MPU_SDA                         34
-// #define MPU_SCL                         18
+#define MPU_INT                         33
+#define MPU_SDA                         18
+#define MPU_SCL                         32
