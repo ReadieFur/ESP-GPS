@@ -128,5 +128,6 @@ std::map<String, std::function<uint(String)>> API::_apiMethods =
     { "config get", API::ConfigGet },
     { "config reset", API::ConfigReset },
     { "battery check", API::BatteryCheck },
+    //TODO: Toggle live tracking, constant updates, always on.
     { "reboot", API::Reboot }
 };
