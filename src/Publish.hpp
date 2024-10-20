@@ -37,8 +37,12 @@ public:
         }
         else
         {
-            SerialMon.println("Failed to send data. Reason: GPS location not updated.");
-            return false;
+            // SerialMon.println("Failed to send data. Reason: GPS location not updated.");
+            // return false;
+
+            //Instead of failing here, send the data anyway to indicate to the server that the device is alive and has had an update.
+            //(Useful if the device fails to get any location data but is awoken from motion, can be used as a notification alert).
+            SerialMon.println("Failed to get location data for publishing.");
         }
 
         // if (GPS::Gps.speed.isValid())
