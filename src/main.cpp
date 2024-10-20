@@ -20,13 +20,64 @@
 #include "MQTT.hpp"
 #include "API.hpp"
 #include "Publish.hpp"
+#include <WString.h>
+#include <vector>
 
 short retryAttempts = 0;
 
-void setup()
+String MsToDurationString(uint durationMs)
 {
-    SerialMonitor::Init();
+    //Calculate each time component.
+    unsigned long totalMilliseconds = durationMs % 1000;
+    unsigned long totalSeconds = durationMs / 1000;
+    unsigned long seconds = totalSeconds % 60;
+    unsigned long totalMinutes = totalSeconds / 60;
+    unsigned long minutes = totalMinutes % 60;
+    unsigned long totalHours = totalMinutes / 60;
+    unsigned long hours = totalHours % 24;
+    unsigned long days = totalHours / 24;
+    
+    std::vector<String> parts;
+    if (days > 0)
+        parts.push_back(String(days) + " day" + (days > 1 ? "s" : ""));
+    if (hours > 0)
+        parts.push_back(String(hours) + " hour" + (hours > 1 ? "s" : ""));
+    if (minutes > 0)
+        parts.push_back(String(minutes) + " minute" + (minutes > 1 ? "s" : ""));
+    if (seconds > 0)
+        parts.push_back(String(seconds) + " second" + (seconds > 1 ? "s" : ""));
+    if (totalMilliseconds > 0 || parts.size() == 0)
+        parts.push_back(String(totalMilliseconds) + " millisecond" + (totalMilliseconds != 1 ? "s" : ""));
 
+    String durationString = "";
+    for (size_t i = 0; i < parts.size(); i++)
+    {
+        String part = parts.at(i);
+        
+        if (i == 0)
+            durationString += part;
+        else if (i == parts.size() - 1)
+            durationString += " and " + part;
+        else
+            durationString += " " + part;
+    }
+
+    return durationString;
+}
+
+void DeviceSleep(uint durationMs, bool deepSleep)
+{
+    String sleepDurationString = MsToDurationString(durationMs);
+    SerialMon.printf("%s sleeping for %s.\n", deepSleep ? "Deep" : "Light", sleepDurationString);
+
+    if (deepSleep)
+        Battery::DeepSleep(durationMs);
+    else
+        Battery::LightSleep(durationMs);
+}
+
+void LogWakeReason()
+{
     //TODO: Check if wakeup source was from motion.
     esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
     switch (wakeup_reason)
@@ -38,7 +89,12 @@ void setup()
         case ESP_SLEEP_WAKEUP_ULP: SerialMon.println("Wakeup caused by ULP program."); break;
         default: SerialMon.printf("Wakeup was not caused by deep sleep: %d\n", wakeup_reason); break;
     }
+}
 
+void setup()
+{
+    SerialMonitor::Init();
+    LogWakeReason();
     API::Init();
     #ifdef MOTION_MODULE
     Motion::Init();
@@ -50,11 +106,10 @@ void setup()
     GPS::Init();
     if (!GSM::Init())
     {
-        int sleepDuration = Battery::GetSleepDuration() / 2;
-        SerialMon.printf("Fail, deep sleeping for: %ims\n", sleepDuration);
+        SerialMon.print("Fail, ");
         //Deep sleep will cause the program to restart, which we want if this fails.
-        Battery::DeepSleep(sleepDuration);
-        return;
+        DeviceSleep(Battery::GetSleepDuration() / 2, true);
+        return; //Not reached.
     }
     Location::Init();
     MQTT::Init();
@@ -63,6 +118,7 @@ void setup()
 
 void loop()
 {
+    LogWakeReason();
     SerialMonitor::Loop();
     API::Loop();
     #ifdef MOTION_MODULE
@@ -91,14 +147,13 @@ void loop()
     while (failed && retryAttempts < 10);
     if (failed)
     {
-        int sleepDuration = Battery::GetSleepDuration() / 2;
-        SerialMon.printf("Fail, deep sleeping for: %ims\n", sleepDuration);
+        SerialMon.print("Fail, ");
         //Only light sleep if we had a successful run.
         //TODO: Change this so that we only enter deep sleep of the modem stops responding as we can also fail here if there is a poor connection, which is not critical.
-        Battery::DeepSleep(sleepDuration);
+        DeviceSleep(Battery::GetSleepDuration() / 2, true);
         return;
     }
 
-    SerialMon.printf("Success, light sleeping for: %ims\n", Battery::GetSleepDuration());
-    Battery::LightSleep(Battery::GetSleepDuration());
+    SerialMon.print("Success, ");
+    DeviceSleep(Battery::GetSleepDuration(), false);
 }

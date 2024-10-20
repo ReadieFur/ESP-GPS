@@ -7,6 +7,7 @@
 #include "Battery.hpp"
 #include <chrono>
 #include <ctime>
+#include <esp_sleep.h>
 
 class Publish
 {
@@ -75,6 +76,8 @@ public:
         Battery::GetStatus(&batteryVoltageMv, &batteryState);
         data.insert({"bat_vlt", batteryVoltageMv});
         data.insert({"bat_state", batteryState});
+ 
+        data.insert({"trigger", esp_sleep_get_wakeup_cause()});
 
         // data.insert({"gsm_op", GSM::Modem.getOperator()});
         // data.insert({"gsm_rssi", GSM::Modem.getSignalQuality()});

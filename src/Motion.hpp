@@ -42,30 +42,36 @@ public:
         }
         // SerialMon.println("MPU6050 interrupt pin valid.");
 
-        //Clear any interrupts (library cannot take nullptr otherwise the program will crash).
-        sensors_event_t event = {};
-        mpu.getEvent(&event, &event, &event);
-
         mpu.setHighPassFilter(MPU6050_HIGHPASS_0_63_HZ);
         mpu.setMotionDetectionThreshold(8); //0-255, ideal range seems to be between 7 and 12.
         mpu.setMotionDetectionDuration(200); //1 time unit is 10ms, so 2 seconds is 200 units.
-        mpu.setInterruptPinLatch(true);
+        mpu.setInterruptPinLatch(false); //Testing with auto interrupt clear, should be ok.
         mpu.setInterruptPinPolarity(false);
         mpu.setMotionInterrupt(true);
 
         esp_sleep_enable_ext0_wakeup((gpio_num_t)MPU_INT, 1);
 
         setupFailed = false;
+
+        //Clear any interrupts (library cannot take nullptr otherwise the program will crash).
+        Clear();
+
         SerialMon.println("Successfully configured MPU6050.");
         return true;
     }
 
     static void Loop()
     {
+        Clear();
+    }
+
+    static void Clear()
+    {
         if (setupFailed)
             return;
         sensors_event_t event = {};
         mpu.getEvent(&event, &event, &event);
+        mpu.getMotionInterruptStatus(); //This should clear the interrupt status from what I read.
     }
 };
 
