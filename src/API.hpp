@@ -55,7 +55,7 @@ private:
             return 403;
         }
 
-        String value = Storage::Cache[data].as<String>();
+        const char* value = Storage::Cache[data].as<const char*>();
         SerialMon.printf("The value for key '%s' is '%s'.\n", data, value);
 
         return 200;
@@ -66,28 +66,27 @@ private:
 
     static uint BatteryCheck(String)
     {
-        uint32_t voltage;
+        uint32_t voltage, solarVoltage;
         Battery::EState state;
-        Battery::UpdateVoltage(&voltage, &state);
+        Battery::UpdateVoltage(&voltage, &solarVoltage, &state);
 
         String stateString;
-        switch (state)
-        {
-        case Battery::EState::Charging:
-            stateString = "charging";
-            break;
-        case Battery::EState::Discharging:
-            stateString = "discharging";
-            break;
-        case Battery::EState::Discharging_Low:
-            stateString = "low";
-            break;
-        case Battery::EState::Discharging_Critical:
-            stateString = "critical";
-            break;
-        }
+        if (state & Battery::EState::Charging)
+            stateString += "Charging";
+        if (state & Battery::EState::Discharging)
+            stateString += "Discharging";
+        if (state & Battery::EState::Low)
+            stateString += "Low";
+        if (state & Battery::EState::Critical)
+            stateString += "Critical";
 
-        SerialMon.printf("The battery voltage is %imV and is currently %s.\n", voltage, stateString);
+        SerialMon.printf("Battery:"
+            "\nVoltage: %imV"
+            "\nSolar voltage: %imV"
+            "\nState: %s.\n",
+            voltage,
+            solarVoltage,
+            stateString.c_str());
 
         return 200;
     }

@@ -75,9 +75,9 @@ public:
         //     data.insert({"hdop_age", GPS::Gps.satellites.age()});
         // }
 
-        uint32_t batteryVoltageMv;
+        uint32_t batteryVoltageMv, solarVoltageMv;
         Battery::EState batteryState;
-        Battery::GetStatus(&batteryVoltageMv, &batteryState);
+        Battery::GetStatus(&batteryVoltageMv, &solarVoltageMv, &batteryState);
         data.insert({"bat_vlt", batteryVoltageMv});
         data.insert({"bat_state", batteryState});
  
