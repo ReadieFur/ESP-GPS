@@ -8,7 +8,7 @@
 #include <TinyGSM.h>
 #include <TinyGsmClient.h>
 #ifdef DEBUG
-#include <StreamDebugger.h>
+#include <StreamDebugger.hpp>
 #endif
 #include <esp_log.h>
 #include "Helpers.h"
@@ -22,6 +22,13 @@ namespace ReadieFur::EspGps
         StreamDebugger* _debugger;
         #endif
         TinyGsm* _modem;
+
+        #ifdef DEBUG
+        void RefreshDebugStream()
+        {
+            _debugger->DumpStream = esp_log_level_get(nameof(GPS)) >= esp_log_level_t::ESP_LOG_VERBOSE ? &Serial : nullptr;
+        }
+        #endif
 
         bool HardResetModem()
         {
@@ -52,8 +59,9 @@ namespace ReadieFur::EspGps
         {
             Serial2.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
             #ifdef DEBUG
-            _debugger = new StreamDebugger(Serial2, Serial);
+            _debugger = new StreamDebugger(Serial2, &Serial);
             _modem = new TinyGsm(*_debugger);
+            RefreshDebugStream();
             #else
             _modem = new TinyGsm(Serial2);
             #endif
@@ -74,7 +82,14 @@ namespace ReadieFur::EspGps
 
             _modem->getModemInfo(); //In debug mode the output of this is relayed through the stream debugger, so no need to manually log it.
 
-            vTaskDelay(portMAX_DELAY);
+            while (!ServiceCancellationToken.IsCancellationRequested())
+            {
+                #ifdef DEBUG
+                RefreshDebugStream();
+                #endif
+
+                vTaskDelay(portMAX_DELAY);
+            }
         }
 
     public:

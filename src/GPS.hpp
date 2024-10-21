@@ -5,6 +5,8 @@
 #include "Service/AService.hpp"
 #include <TinyGPS++.h>
 #include <HardwareSerial.h>
+#include <esp_log.h>
+#include "Helpers.h"
 
 namespace ReadieFur::EspGps
 {
@@ -20,12 +22,12 @@ namespace ReadieFur::EspGps
 
             while (!ServiceCancellationToken.IsCancellationRequested())
             {
+                esp_log_level_t tagLogLevel = esp_log_level_get(nameof(GPS));
                 while (Serial1.available())
                 {
                     char c = Serial1.read();
-                    #if defined(DEBUG) /*&& CORE_DEBUG_LEVEL >= 5*/
-                    Serial.write(c);
-                    #endif
+                    if (tagLogLevel >= esp_log_level_t::ESP_LOG_VERBOSE)
+                        Serial.write(c);
                     _tinyGps.encode(c);
                 }
 
