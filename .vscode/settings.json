@@ -69,6 +69,7 @@
         "set": "cpp",
         "stop_token": "cpp",
         "queue": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "typeindex": "cpp"
     }
 }
