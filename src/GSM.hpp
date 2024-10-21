@@ -12,6 +12,7 @@
 #endif
 #include <esp_log.h>
 #include "Helpers.h"
+#include "Storage.hpp"
 
 namespace ReadieFur::EspGps
 {
@@ -54,6 +55,38 @@ namespace ReadieFur::EspGps
             return _modem->init();
         }
 
+        bool ValidateConnection()
+        {
+            if (_modem->isNetworkConnected() && _modem->isGprsConnected())
+                return true;
+
+            ESP_LOGW(nameof(GSM), "GSM disconnected...");
+            if (!_modem->waitForNetwork(60000L, true))
+            {
+                ESP_LOGE(nameof(GSM), "Failed to reconnect to the network.");
+                return false;
+            }
+
+            //And make sure GPRS/EPS is still connected.
+            if (_modem->isGprsConnected())
+            {
+                ESP_LOGI(nameof(GSM), "GSM reconnected.");
+                return true;
+            }
+
+            const char *apn = GetConfig(const char*, MODEM_APN),
+                *username = GetConfig(const char*, MODEM_USERNAME),
+                *password = GetConfig(const char*, MODEM_PASSWORD);
+            if (!_modem->gprsConnect(apn, username, password))
+            {
+                ESP_LOGE(nameof(GSM), "Failed to reconnect to GPRS.");
+                return false;
+            }
+
+            ESP_LOGI(nameof(GSM), "GSM reconnected.");
+            return true;
+        }
+
     protected:
         void RunServiceImpl() override
         {
@@ -78,9 +111,22 @@ namespace ReadieFur::EspGps
             #endif
 
             if (!HardResetModem())
-                return; //TODO: Log here, program should crash at this stage if this is reached.
+            {
+                ESP_LOGE(nameof(GSM), "Failed to start modem.");
+                abort();
+                return; //Does not return;
+            }
 
             _modem->getModemInfo(); //In debug mode the output of this is relayed through the stream debugger, so no need to manually log it.
+
+            //Unlock your SIM card with a PIN if needed.
+            const char* pin = GetConfig(const char*, MODEM_PIN);
+            if (pin && _modem->getSimStatus() != 3 && !_modem->simUnlock(pin))
+            {
+                ESP_LOGE(nameof(GSM), "Failed to unlock SIM.");
+                abort();
+                return;
+            }
 
             while (!ServiceCancellationToken.IsCancellationRequested())
             {
@@ -88,14 +134,16 @@ namespace ReadieFur::EspGps
                 RefreshDebugStream();
                 #endif
 
-                vTaskDelay(portMAX_DELAY);
+                ValidateConnection();
+
+                vTaskDelay(pdMS_TO_TICKS(1000));
             }
         }
 
     public:
         GSM()
         {
-            ServiceEntrypointStackDepth += 4096;
+            ServiceEntrypointStackDepth += 1024;
         }
 
         ~GSM()
