@@ -1,11 +1,9 @@
 #pragma once
 
-#define MODEM_DTR                       25
 #define MODEM_TX                        26
 #define MODEM_RX                        27
 #define MODEM_PWRKEY                    4
 #define MODEM_POWERON                   12
-#define MODEM_RING                      33
 #define MODEM_RESET                     5
 
 #define GPS_TX                          21
