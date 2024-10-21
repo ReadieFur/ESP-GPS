@@ -9,6 +9,7 @@
 #include "GSM.hpp"
 #include "Motion.hpp"
 #include "Storage.hpp"
+#include "Battery.hpp"
 
 using namespace ReadieFur;
 
@@ -18,11 +19,17 @@ void setup()
 
     EspGps::Storage::Init();
     EspGps::Motion::Configure();
-    
+
+    #ifdef BATTERY_ADC
+    Service::ServiceManager::InstallService<EspGps::Battery>();
+    #endif
     Service::ServiceManager::InstallService<EspGps::GPS>();
     Service::ServiceManager::InstallService<EspGps::GSM>();
 
     Service::ServiceManager::StartService<EspGps::SerialMonitor>();
+    #ifdef BATTERY_ADC
+    Service::ServiceManager::StartService<EspGps::Battery>();
+    #endif
     Service::ServiceManager::StartService<EspGps::GPS>();
     Service::ServiceManager::StartService<EspGps::GSM>();
 }
