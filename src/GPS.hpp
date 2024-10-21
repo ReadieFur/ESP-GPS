@@ -23,10 +23,14 @@ namespace ReadieFur::EspGps
                 while (Serial1.available())
                 {
                     char c = Serial1.read();
+                    #if defined(DEBUG) /*&& CORE_DEBUG_LEVEL >= 5*/
+                    Serial.write(c);
+                    #endif
                     _tinyGps.encode(c);
                 }
 
                 //Going based off of the NEO-6M which has a frequency of 5Hz.
+                //I should probably scan faster than this however not much data is output so the Rx buffer shouldn't get full.
                 vTaskDelay(pdMS_TO_TICKS(1000 / 5));
             }
 
