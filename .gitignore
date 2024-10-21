@@ -5,4 +5,4 @@
 .vscode/ipch
 sdkconfig.*
 src/Config.h
-src/CustomBoard.h
+src/Board.h
