@@ -9,6 +9,8 @@
 #include <mutex>
 #include "Service/AService.hpp"
 #include "Storage.hpp"
+#include "Helpers.h"
+#include <esp_log.h>
 
 namespace ReadieFur::EspGps
 {
@@ -27,7 +29,7 @@ namespace ReadieFur::EspGps
 
     private:
         std::mutex _mutex;
-        uint32_t _voltage = 0, _solarVoltage = 0;
+        uint32_t _voltage = 0, _chargeVoltage = 0;
         EState _state = EState::Charging; //Assume we are plugged in by default.
 
         static uint SampleADC(int adcPin)
@@ -59,7 +61,7 @@ namespace ReadieFur::EspGps
 
             _voltage = SampleADC(BATTERY_ADC);
             #ifdef CHARGE_ADC
-            _solarVoltage = SampleADC(CHARGE_ADC);
+            _chargeVoltage = SampleADC(CHARGE_ADC);
             #endif
 
             if (_voltage <= BATTERY_CRIT_VOLTAGE)
@@ -67,7 +69,7 @@ namespace ReadieFur::EspGps
             else if (_voltage <= BATTERY_LOW_VOLTAGE)
                 _state = EState::Low;
 
-            _state = (EState)(_state | (_solarVoltage >= CHG_VOLTAGE_MIN ? EState::Charging : EState::Discharging));
+            _state = (EState)(_state | (_chargeVoltage >= CHG_VOLTAGE_MIN ? EState::Charging : EState::Discharging));
 
             _mutex.unlock();
         }
@@ -78,11 +80,17 @@ namespace ReadieFur::EspGps
             while (!ServiceCancellationToken.IsCancellationRequested())
             {
                 UpdateVoltage();
+                ESP_LOGV(nameof(Battery), "Voltage: Battery: %u, Charge: %u", _voltage, _chargeVoltage);
                 vTaskDelay(pdMS_TO_TICKS(5 * 1000));
             }
         }
 
     public:
+        Battery()
+        {
+            ServiceEntrypointStackDepth += 64;
+        }
+
         uint GetSleepDuration()
         {
             switch (_state)
