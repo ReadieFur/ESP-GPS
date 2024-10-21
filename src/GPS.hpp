@@ -42,7 +42,7 @@ namespace ReadieFur::EspGps
     public:
         GPS()
         {
-            ServiceEntrypointStackDepth += 256;
+            ServiceEntrypointStackDepth += 1024;
         }
     };
 };

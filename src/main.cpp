@@ -10,7 +10,8 @@
 #include "Motion.hpp"
 #include "Storage.hpp"
 #include "Battery.hpp"
-#include "Diagnostics.hpp"
+#include "Diagnostic/DiagnosticsService.hpp"
+#include "MQTT.hpp"
 
 using namespace ReadieFur;
 
@@ -18,8 +19,8 @@ void setup()
 {
     Service::ServiceManager::InstallService<EspGps::SerialMonitor>();
     #ifdef DEBUG
-    Service::ServiceManager::InstallService<EspGps::Diagnostics>();
-    Service::ServiceManager::StartService<EspGps::Diagnostics>();
+    Service::ServiceManager::InstallService<Diagnostic::DiagnosticsService>();
+    Service::ServiceManager::StartService<Diagnostic::DiagnosticsService>();
     #endif
 
     EspGps::Storage::Init();
@@ -30,6 +31,7 @@ void setup()
     #endif
     Service::ServiceManager::InstallService<EspGps::GPS>();
     Service::ServiceManager::InstallService<EspGps::GSM>();
+    Service::ServiceManager::InstallService<EspGps::MQTT>();
 
     Service::ServiceManager::StartService<EspGps::SerialMonitor>();
     #ifdef BATTERY_ADC
@@ -37,6 +39,7 @@ void setup()
     #endif
     Service::ServiceManager::StartService<EspGps::GPS>();
     Service::ServiceManager::StartService<EspGps::GSM>();
+    Service::ServiceManager::StartService<EspGps::MQTT>();
 }
 
 void loop()

@@ -29,6 +29,8 @@ namespace ReadieFur::EspGps
     public:
         SerialMonitor()
         {
+            //It seems to be that any task that needs to interact with STDOUT needs at least an additional 1024 bytes on the stack.
+            //My guess is this is for the internal buffer when formatting the string.
             ServiceEntrypointStackDepth += 1024;
         }
     };

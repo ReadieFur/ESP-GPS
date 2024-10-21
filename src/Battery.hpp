@@ -88,7 +88,7 @@ namespace ReadieFur::EspGps
     public:
         Battery()
         {
-            ServiceEntrypointStackDepth += 64;
+            ServiceEntrypointStackDepth += 1024;
         }
 
         uint GetSleepDuration()
