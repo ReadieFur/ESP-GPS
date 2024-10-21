@@ -10,12 +10,17 @@
 #include "Motion.hpp"
 #include "Storage.hpp"
 #include "Battery.hpp"
+#include "Diagnostics.hpp"
 
 using namespace ReadieFur;
 
 void setup()
 {
     Service::ServiceManager::InstallService<EspGps::SerialMonitor>();
+    #ifdef DEBUG
+    Service::ServiceManager::InstallService<EspGps::Diagnostics>();
+    Service::ServiceManager::StartService<EspGps::Diagnostics>();
+    #endif
 
     EspGps::Storage::Init();
     EspGps::Motion::Configure();
