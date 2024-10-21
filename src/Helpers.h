@@ -1,0 +1,1 @@
+#define nameof(n) #n
