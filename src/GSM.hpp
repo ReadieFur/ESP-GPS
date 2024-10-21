@@ -13,6 +13,8 @@
 #include <esp_log.h>
 #include "Helpers.h"
 #include "Storage.hpp"
+#include <map>
+#include <mutex>
 
 namespace ReadieFur::EspGps
 {
@@ -23,6 +25,8 @@ namespace ReadieFur::EspGps
         StreamDebugger* _debugger;
         #endif
         TinyGsm* _modem;
+        std::mutex _mutex;
+        std::map<int, TinyGsmClient*> _clients;
 
         #ifdef DEBUG
         void RefreshDebugStream()
@@ -155,6 +159,57 @@ namespace ReadieFur::EspGps
             if (_debugger != nullptr)
                 delete _debugger;
             _debugger = nullptr;
+        }
+
+        TinyGsmClient* CreateClient()
+        {
+            _mutex.lock();
+            
+            //Get first free MUX ID.
+            int mux = 0;
+            //Iterate through the map in order (std::map is sorted apparently), looking for gaps in the keys.
+            for (const auto& kvp : _clients)
+            {
+                if (kvp.first != mux)
+                {
+                    //We've found a gap, return the missing number.
+                    break;
+                }
+                mux++; //Keep checking the next number.
+            }
+
+            if (mux > TINY_GSM_MUX_COUNT - 1)
+            {
+                _mutex.unlock();
+                ESP_LOGW(nameof(GSM), "Maximum GSM clients reached.");
+                return nullptr;
+            }
+
+            TinyGsmClient* client = new TinyGsmClient(*_modem, mux);
+            _clients[mux] = client;
+
+            _mutex.unlock();
+
+            return client;
+        }
+
+        void DestroyClient(TinyGsmClient* client)
+        {
+            if (client == nullptr)
+                return;
+
+            _mutex.lock();
+
+            for (auto it = _clients.begin(); it != _clients.end(); ++it)
+            {
+                if (it->second == client)
+                {
+                    _clients.erase(it);
+                    break;
+                }
+            }
+
+            _mutex.unlock();
         }
     };
 };
