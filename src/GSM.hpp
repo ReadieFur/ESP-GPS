@@ -33,7 +33,7 @@ namespace ReadieFur::EspGps
         #ifdef DEBUG
         void RefreshDebugStream()
         {
-            // _debugger->DumpStream = esp_log_level_get(nameof(GPS)) >= esp_log_level_t::ESP_LOG_VERBOSE ? &Serial : nullptr;
+            _debugger->DumpStream = esp_log_level_get(nameof(GPS)) >= esp_log_level_t::ESP_LOG_VERBOSE ? &Serial : nullptr;
         }
         #endif
 
