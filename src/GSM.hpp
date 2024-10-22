@@ -15,6 +15,7 @@
 #include "Storage.hpp"
 #include <map>
 #include <mutex>
+#include "Event/ManualResetEvent.hpp"
 
 namespace ReadieFur::EspGps
 {
@@ -27,11 +28,12 @@ namespace ReadieFur::EspGps
         TinyGsm* _modem;
         std::mutex _mutex;
         std::map<int, TinyGsmClient*> _clients;
+        Event::ManualResetEvent _connectedEvent;
 
         #ifdef DEBUG
         void RefreshDebugStream()
         {
-            _debugger->DumpStream = esp_log_level_get(nameof(GPS)) >= esp_log_level_t::ESP_LOG_VERBOSE ? &Serial : nullptr;
+            // _debugger->DumpStream = esp_log_level_get(nameof(GPS)) >= esp_log_level_t::ESP_LOG_VERBOSE ? &Serial : nullptr;
         }
         #endif
 
@@ -61,13 +63,26 @@ namespace ReadieFur::EspGps
 
         bool ValidateConnection()
         {
-            if (_modem->isNetworkConnected() && _modem->isGprsConnected())
-                return true;
+            _mutex.lock();
 
-            ESP_LOGW(nameof(GSM), "GSM disconnected...");
-            if (!_modem->waitForNetwork(60000L, true))
+            if (_modem->testAT(500) && _modem->isNetworkConnected() && _modem->isGprsConnected())
+            {
+                // _connectedEvent.Set(); //Should already be set.
+                _mutex.unlock();
+                return true;
+            }
+
+            if (_connectedEvent.IsSet())
+            {
+                ESP_LOGW(nameof(GSM), "GSM disconnected...");
+                _connectedEvent.Clear();
+            }
+
+            //The check signal command in the source has no impact on the result so skip the unnecessary call.
+            if (!_modem->waitForNetwork(10 * 1000, false))
             {
                 ESP_LOGE(nameof(GSM), "Failed to reconnect to the network.");
+                _mutex.unlock();
                 return false;
             }
 
@@ -75,6 +90,7 @@ namespace ReadieFur::EspGps
             if (_modem->isGprsConnected())
             {
                 ESP_LOGI(nameof(GSM), "GSM reconnected.");
+                _mutex.unlock();
                 return true;
             }
 
@@ -84,10 +100,13 @@ namespace ReadieFur::EspGps
             if (!_modem->gprsConnect(apn, username, password))
             {
                 ESP_LOGE(nameof(GSM), "Failed to reconnect to GPRS.");
+                _mutex.unlock();
                 return false;
             }
 
             ESP_LOGI(nameof(GSM), "GSM reconnected.");
+            _connectedEvent.Set();
+            _mutex.unlock();
             return true;
         }
 
@@ -145,9 +164,12 @@ namespace ReadieFur::EspGps
         }
 
     public:
+        //TODO: Create an event that can be called by the owning thread and not this thread.
+
         GSM()
         {
             ServiceEntrypointStackDepth += 1024;
+            ServiceEntrypointPriority = configMAX_PRIORITIES * 0.4;
         }
 
         ~GSM()
@@ -164,7 +186,7 @@ namespace ReadieFur::EspGps
         TinyGsmClient* CreateClient()
         {
             _mutex.lock();
-            
+
             //Get first free MUX ID.
             int mux = 0;
             //Iterate through the map in order (std::map is sorted apparently), looking for gaps in the keys.
@@ -189,7 +211,6 @@ namespace ReadieFur::EspGps
             _clients[mux] = client;
 
             _mutex.unlock();
-
             return client;
         }
 
@@ -209,7 +230,39 @@ namespace ReadieFur::EspGps
                 }
             }
 
+            delete client;
+
             _mutex.unlock();
+        }
+
+        bool IsConnected()
+        {
+            #if true
+            return _connectedEvent.IsSet();
+            #else
+            if (!_mutex.try_lock())
+            {
+                //If we failed to lock then it is likely that the connection is being tested above, so just use the cached value for now.
+                return _connectedEvent.IsSet();
+            }
+
+            _mutex.lock();
+            if (_modem->testAT(500) && _modem->isNetworkConnected() && _modem->isGprsConnected())
+            {
+                _mutex.unlock();
+                return true;
+            }
+
+            _connectedEvent.Clear();
+
+            _mutex.unlock();
+            return false;
+            #endif
+        }
+
+        bool WaitForConnection(TickType_t timeout = portMAX_DELAY)
+        {
+            return _connectedEvent.WaitOne(timeout);
         }
     };
 };
