@@ -33,7 +33,11 @@ namespace ReadieFur::EspGps
         #ifdef DEBUG
         void RefreshDebugStream()
         {
+            #if false
             _debugger->DumpStream = esp_log_level_get(nameof(GPS)) >= esp_log_level_t::ESP_LOG_VERBOSE ? &Serial : nullptr;
+            #else
+            _debugger->DumpStream = _connectedEvent.IsSet() ? nullptr : &Serial;
+            #endif
         }
         #endif
 
@@ -67,7 +71,10 @@ namespace ReadieFur::EspGps
 
             if (_modem->testAT(500) && _modem->isNetworkConnected() && _modem->isGprsConnected())
             {
-                // _connectedEvent.Set(); //Should already be set.
+                _connectedEvent.Set();
+                #ifdef DEBUG
+                RefreshDebugStream();
+                #endif
                 _mutex.unlock();
                 return true;
             }
@@ -77,6 +84,10 @@ namespace ReadieFur::EspGps
                 ESP_LOGW(nameof(GSM), "GSM disconnected...");
                 _connectedEvent.Clear();
             }
+
+            #ifdef DEBUG
+            RefreshDebugStream();
+            #endif
 
             //The check signal command in the source has no impact on the result so skip the unnecessary call.
             if (!_modem->waitForNetwork(10 * 1000, false))
@@ -91,6 +102,9 @@ namespace ReadieFur::EspGps
             {
                 ESP_LOGI(nameof(GSM), "GSM reconnected.");
                 _mutex.unlock();
+                #ifdef DEBUG
+                RefreshDebugStream();
+                #endif
                 return true;
             }
 
@@ -106,6 +120,9 @@ namespace ReadieFur::EspGps
 
             ESP_LOGI(nameof(GSM), "GSM reconnected.");
             _connectedEvent.Set();
+            #ifdef DEBUG
+            RefreshDebugStream();
+            #endif
             _mutex.unlock();
             return true;
         }
@@ -140,7 +157,7 @@ namespace ReadieFur::EspGps
                 return; //Does not return;
             }
 
-            _modem->getModemInfo(); //In debug mode the output of this is relayed through the stream debugger, so no need to manually log it.
+            ESP_LOGD(nameof(GSM), "Modem info: %s", _modem->getModemInfo().c_str());
 
             //Unlock your SIM card with a PIN if needed.
             const char* pin = GetConfig(const char*, MODEM_PIN);
@@ -153,10 +170,6 @@ namespace ReadieFur::EspGps
 
             while (!ServiceCancellationToken.IsCancellationRequested())
             {
-                #ifdef DEBUG
-                RefreshDebugStream();
-                #endif
-
                 ValidateConnection();
 
                 vTaskDelay(pdMS_TO_TICKS(1000));
