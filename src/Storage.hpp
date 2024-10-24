@@ -11,7 +11,7 @@
 #include <list>
 #include <algorithm>
 #include "Helpers.h"
-#include <esp_log.h>
+#include "Logging.hpp"
 
 namespace ReadieFur::EspGps
 {
@@ -55,7 +55,7 @@ namespace ReadieFur::EspGps
 
             if (!SPIFFS.begin(true))
             {
-                ESP_LOGE(nameof(Storage), "Failed to initialize SPIFFS.");
+                LOGE(nameof(Storage), "Failed to initialize SPIFFS.");
                 SetDefaults();
                 return false;
             }
@@ -67,7 +67,7 @@ namespace ReadieFur::EspGps
                 {
                     file.close();
                     _mutex.unlock();
-                    ESP_LOGE(nameof(Storage), "Failed to initialize config file.");
+                    LOGE(nameof(Storage), "Failed to initialize config file.");
                     SetDefaults();
                     return false;
                 }
@@ -77,7 +77,7 @@ namespace ReadieFur::EspGps
                 if (err != DeserializationError::Ok)
                 {
                     _mutex.unlock();
-                    ESP_LOGE(nameof(Storage), "Failed to load config file: %i", err);
+                    LOGE(nameof(Storage), "Failed to load config file: %i", err);
                     return false;
                 }
                 SetDefaults();
@@ -90,7 +90,7 @@ namespace ReadieFur::EspGps
                 {
                     Cache.clear();
                     _mutex.unlock();
-                    ESP_LOGE(nameof(Storage), "Failed to initialize config file.");
+                    LOGE(nameof(Storage), "Failed to initialize config file.");
                     return false;
                 }
 
@@ -100,7 +100,7 @@ namespace ReadieFur::EspGps
 
             _initialized = true;
             _mutex.unlock();
-            ESP_LOGI(nameof(Storage), "Successfully loaded configuration file.");
+            LOGI(nameof(Storage), "Successfully loaded configuration file.");
             return true;
         }
 
@@ -110,14 +110,14 @@ namespace ReadieFur::EspGps
 
             if (!_initialized)
             {
-                ESP_LOGW(nameof(Storage), "Storage not initialized.");
+                LOGW(nameof(Storage), "Storage not initialized.");
                 return false;
             }
 
             fs::File file = SPIFFS.open(_filename, FILE_WRITE);
             if (!file)
             {
-                ESP_LOGE(nameof(Storage), "Failed to open file for writing.");
+                LOGE(nameof(Storage), "Failed to open file for writing.");
                 return false;
             }
 
@@ -133,13 +133,13 @@ namespace ReadieFur::EspGps
             _mutex.lock();
 
             if (!_initialized)
-                ESP_LOGW(nameof(Storage), "Storage not initialized.");
+                LOGW(nameof(Storage), "Storage not initialized.");
             else if (!SPIFFS.remove(_filename))
-                ESP_LOGE(nameof(Storage), "Failed to delete config file.");
+                LOGE(nameof(Storage), "Failed to delete config file.");
             
             _mutex.unlock();
 
-            ESP_LOGI(nameof(Storage), "Config reset, restarting...");
+            LOGI(nameof(Storage), "Config reset, restarting...");
 
             ESP.restart();
         }

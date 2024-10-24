@@ -10,7 +10,7 @@
 #ifdef DEBUG
 #include <StreamDebugger.hpp>
 #endif
-#include <esp_log.h>
+#include "Logging.hpp"
 #include "Helpers.h"
 #include "Storage.hpp"
 #include <map>
@@ -81,7 +81,7 @@ namespace ReadieFur::EspGps
 
             if (_connectedEvent.IsSet())
             {
-                ESP_LOGW(nameof(GSM), "GSM disconnected...");
+                LOGW(nameof(GSM), "GSM disconnected...");
                 _connectedEvent.Clear();
             }
 
@@ -92,7 +92,7 @@ namespace ReadieFur::EspGps
             //The check signal command in the source has no impact on the result so skip the unnecessary call.
             if (!_modem->waitForNetwork(10 * 1000, false))
             {
-                ESP_LOGE(nameof(GSM), "Failed to reconnect to the network.");
+                LOGE(nameof(GSM), "Failed to reconnect to the network.");
                 _mutex.unlock();
                 return false;
             }
@@ -100,7 +100,7 @@ namespace ReadieFur::EspGps
             //And make sure GPRS/EPS is still connected.
             if (_modem->isGprsConnected())
             {
-                ESP_LOGI(nameof(GSM), "GSM reconnected.");
+                LOGI(nameof(GSM), "GSM reconnected.");
                 _mutex.unlock();
                 #ifdef DEBUG
                 RefreshDebugStream();
@@ -113,12 +113,12 @@ namespace ReadieFur::EspGps
                 *password = GetConfig(const char*, MODEM_PASSWORD);
             if (!_modem->gprsConnect(apn, username, password))
             {
-                ESP_LOGE(nameof(GSM), "Failed to reconnect to GPRS.");
+                LOGE(nameof(GSM), "Failed to reconnect to GPRS.");
                 _mutex.unlock();
                 return false;
             }
 
-            ESP_LOGI(nameof(GSM), "GSM reconnected.");
+            LOGI(nameof(GSM), "GSM reconnected.");
             _connectedEvent.Set();
             #ifdef DEBUG
             RefreshDebugStream();
@@ -152,18 +152,18 @@ namespace ReadieFur::EspGps
 
             if (!HardResetModem())
             {
-                ESP_LOGE(nameof(GSM), "Failed to start modem.");
+                LOGE(nameof(GSM), "Failed to start modem.");
                 abort();
                 return; //Does not return;
             }
 
-            ESP_LOGD(nameof(GSM), "Modem info: %s", _modem->getModemInfo().c_str());
+            LOGD(nameof(GSM), "Modem info: %s", _modem->getModemInfo().c_str());
 
             //Unlock your SIM card with a PIN if needed.
             const char* pin = GetConfig(const char*, MODEM_PIN);
             if (pin && _modem->getSimStatus() != 3 && !_modem->simUnlock(pin))
             {
-                ESP_LOGE(nameof(GSM), "Failed to unlock SIM.");
+                LOGE(nameof(GSM), "Failed to unlock SIM.");
                 abort();
                 return;
             }
@@ -216,7 +216,7 @@ namespace ReadieFur::EspGps
             if (mux > TINY_GSM_MUX_COUNT - 1)
             {
                 _mutex.unlock();
-                ESP_LOGW(nameof(GSM), "Maximum GSM clients reached.");
+                LOGW(nameof(GSM), "Maximum GSM clients reached.");
                 return nullptr;
             }
 

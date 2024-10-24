@@ -4,7 +4,7 @@
 #include <PubSubClient.h>
 #include <Wstring.h>
 #include "Storage.hpp"
-#include <esp_log.h>
+#include "Logging.hpp"
 #include "Helpers.h"
 #include "GSM.hpp"
 #include <TinyGsmClient.h>
@@ -24,7 +24,7 @@ namespace ReadieFur::EspGps
         static void Callback(char* topic, byte* payload, uint len)
         {
             String message = String(reinterpret_cast<const char*>(payload), len);
-            ESP_LOGV(nameof(MQTT), "Message arrived:\n%s", message.c_str());
+            LOGV(nameof(MQTT), "Message arrived:\n%s", message.c_str());
             //TODO: Send to API.
         }
 
@@ -36,7 +36,7 @@ namespace ReadieFur::EspGps
 
             if (_wasConnected)
             {
-                ESP_LOGW(nameof(MQTT), "Disconnected from MQTT server...");
+                LOGW(nameof(MQTT), "Disconnected from MQTT server...");
                 _wasConnected = false;
             }
 
@@ -50,13 +50,13 @@ namespace ReadieFur::EspGps
             if (!_mqtt.connect(GetConfig(const char*, MQTT_CLIENT_ID),
                 GetConfig(const char*, MQTT_USERNAME), GetConfig(const char*, MQTT_PASSWORD)))
             {
-                ESP_LOGE(nameof(MQTT), "Failed to connect to MQTT server...");
+                LOGE(nameof(MQTT), "Failed to connect to MQTT server...");
                 return false;
             }
 
             _mqtt.subscribe(_subscribeTopic.c_str());
 
-            ESP_LOGI(nameof(MQTT), "MQTT reconnected.");
+            LOGI(nameof(MQTT), "MQTT reconnected.");
             return _wasConnected = true;
         }
 
@@ -69,7 +69,7 @@ namespace ReadieFur::EspGps
             _gsmClient = _gsmService->CreateClient();
             if (_gsmClient == nullptr)
             {
-                ESP_LOGE(nameof(MQTT), "Failed to create client.");
+                LOGE(nameof(MQTT), "Failed to create client.");
                 abort();
                 return;
             }

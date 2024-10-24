@@ -10,7 +10,7 @@
 #include "Service/AService.hpp"
 #include "Storage.hpp"
 #include "Helpers.h"
-#include <esp_log.h>
+#include "Logging.hpp"
 #include <Event/Event.hpp>
 
 namespace ReadieFur::EspGps
@@ -86,7 +86,7 @@ namespace ReadieFur::EspGps
             while (!ServiceCancellationToken.IsCancellationRequested())
             {
                 UpdateVoltage();
-                ESP_LOGV(nameof(Battery), "Voltage: Battery: %u, Charge: %u", _voltage, _chargeVoltage);
+                LOGV(nameof(Battery), "Voltage: Battery: %u, Charge: %u", _voltage, _chargeVoltage);
                 vTaskDelay(pdMS_TO_TICKS(5 * 1000));
             }
         }

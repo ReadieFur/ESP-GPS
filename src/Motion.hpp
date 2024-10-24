@@ -5,7 +5,7 @@
 #include <Adafruit_Sensor.h>
 #include "Board.h"
 #include "Helpers.h"
-#include <esp_log.h>
+#include "Logging.hpp"
 #include "Storage.hpp"
 
 namespace ReadieFur::EspGps
@@ -20,23 +20,23 @@ namespace ReadieFur::EspGps
 
             if (!i2c.begin(MPU_SDA, MPU_SCL))
             {
-                ESP_LOGE(nameof(Motion), "I2C failed.");
+                LOGE(nameof(Motion), "I2C failed.");
                 return false;
             }
 
             if (!mpu.begin((uint8_t)104U, &i2c))
             {
-                ESP_LOGE(nameof(Motion), "MPU6050 not found.");
+                LOGE(nameof(Motion), "MPU6050 not found.");
                 return false;
             }
-            ESP_LOGV(nameof(Motion), "MPU6050 found.");
+            LOGV(nameof(Motion), "MPU6050 found.");
 
             if (!esp_sleep_is_valid_wakeup_gpio((gpio_num_t)MPU_INT))
             {
-                ESP_LOGE(nameof(Motion), "MPU6050 interrupt pin invalid for wakeup.");
+                LOGE(nameof(Motion), "MPU6050 interrupt pin invalid for wakeup.");
                 return false;
             }
-            ESP_LOGV(nameof(Motion), "MPU6050 interrupt pin valid.");
+            LOGV(nameof(Motion), "MPU6050 interrupt pin valid.");
 
             mpu.setHighPassFilter(MPU6050_HIGHPASS_0_63_HZ);
             mpu.setMotionDetectionThreshold(GetConfig(int, MOTION_SENSITIVITY)); //0-255, ideal range seems to be between 7 and 12.
@@ -47,7 +47,7 @@ namespace ReadieFur::EspGps
 
             esp_sleep_enable_ext0_wakeup((gpio_num_t)MPU_INT, 1);
 
-            ESP_LOGI(nameof(Motion), "Successfully configured MPU6050.");
+            LOGI(nameof(Motion), "Successfully configured MPU6050.");
 
             i2c.end();
             return true;

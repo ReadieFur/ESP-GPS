@@ -5,7 +5,7 @@
 #include "Service/AService.hpp"
 #include <TinyGPS++.h>
 #include <HardwareSerial.h>
-#include <esp_log.h>
+#include "Logging.hpp"
 #include "Helpers.h"
 
 namespace ReadieFur::EspGps
@@ -27,7 +27,7 @@ namespace ReadieFur::EspGps
                 {
                     char c = Serial1.read();
                     if (tagLogLevel >= esp_log_level_t::ESP_LOG_VERBOSE)
-                        Serial.write(c);
+                        WRITE((const char*)&c);
                     _tinyGps.encode(c);
                 }
 
