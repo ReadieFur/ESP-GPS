@@ -6,3 +6,4 @@
 sdkconfig.*
 src/Config.h
 src/Board.h
+.vscode/settings.json

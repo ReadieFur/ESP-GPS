@@ -70,6 +70,7 @@
         "stop_token": "cpp",
         "queue": "cpp",
         "regex": "cpp",
-        "typeindex": "cpp"
+        "typeindex": "cpp",
+        "esp32-hal-uart.c": "cpp"
     }
 }
