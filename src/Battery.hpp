@@ -11,6 +11,7 @@
 #include "Storage.hpp"
 #include "Helpers.h"
 #include <esp_log.h>
+#include <Event/Event.hpp>
 
 namespace ReadieFur::EspGps
 {
@@ -64,12 +65,17 @@ namespace ReadieFur::EspGps
             _chargeVoltage = SampleADC(CHARGE_ADC);
             #endif
 
+            EState oldState = _state;
+
             if (_voltage <= BATTERY_CRIT_VOLTAGE)
                 _state = EState::Critical;
             else if (_voltage <= BATTERY_LOW_VOLTAGE)
                 _state = EState::Low;
 
             _state = (EState)(_state | (_chargeVoltage >= CHG_VOLTAGE_MIN ? EState::Charging : EState::Discharging));
+
+            if (oldState != _state)
+                OnStateChanged.Dispatch(_state);
 
             _mutex.unlock();
         }
@@ -86,6 +92,8 @@ namespace ReadieFur::EspGps
         }
 
     public:
+        Event::Event<EState> OnStateChanged;
+
         Battery()
         {
             ServiceEntrypointStackDepth += 1024;
@@ -105,6 +113,13 @@ namespace ReadieFur::EspGps
                 //All charging states for now will use the single charging value.
                 return GetConfig(int, BATTERY_CHRG_INTERVAL);
             }
+        }
+
+        void GetStatus(double* batteryVoltage, double* chargeVoltage, EState* state)
+        {
+            if (batteryVoltage != nullptr) *batteryVoltage = _voltage;
+            if (chargeVoltage != nullptr) *chargeVoltage = _chargeVoltage;
+            if (state != nullptr) *state = _state;
         }
     };
 };

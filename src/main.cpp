@@ -28,7 +28,7 @@ void setup()
     CHECK_SERVICE_RESULT(Service::ServiceManager::InstallService<EspGps::SerialMonitor>());
     #ifdef DEBUG
     CHECK_SERVICE_RESULT(Service::ServiceManager::InstallService<Diagnostic::DiagnosticsService>());
-    CHECK_SERVICE_RESULT(Service::ServiceManager::StartService<Diagnostic::DiagnosticsService>());
+    // CHECK_SERVICE_RESULT(Service::ServiceManager::StartService<Diagnostic::DiagnosticsService>());
     #endif
 
     EspGps::Storage::Init();
