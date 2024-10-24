@@ -4,7 +4,6 @@
 #include <freertos/FreeRTOSConfig.h>
 #include "Board.h"
 #include "Config.h"
-#include <HardwareSerial.h>
 #include <TinyGSM.h>
 #include <TinyGsmClient.h>
 #ifdef DEBUG
@@ -16,6 +15,7 @@
 #include <map>
 #include <mutex>
 #include "Event/ManualResetEvent.hpp"
+#include "DebugStream.hpp"
 
 namespace ReadieFur::EspGps
 {
@@ -34,9 +34,9 @@ namespace ReadieFur::EspGps
         void RefreshDebugStream()
         {
             #if false
-            _debugger->DumpStream = esp_log_level_get(nameof(GPS)) >= esp_log_level_t::ESP_LOG_VERBOSE ? &Serial : nullptr;
+            _debugger->DumpStream = esp_log_level_get(nameof(GPS)) >= esp_log_level_t::ESP_LOG_VERBOSE ? &DbgStream : nullptr;
             #else
-            _debugger->DumpStream = _connectedEvent.IsSet() ? nullptr : &Serial;
+            _debugger->DumpStream = _connectedEvent.IsSet() ? nullptr : &DbgStream;
             #endif
         }
         #endif
@@ -132,7 +132,7 @@ namespace ReadieFur::EspGps
         {
             Serial2.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
             #ifdef DEBUG
-            _debugger = new StreamDebugger(Serial2, &Serial);
+            _debugger = new StreamDebugger(Serial2, &DbgStream);
             _modem = new TinyGsm(*_debugger);
             RefreshDebugStream();
             #else

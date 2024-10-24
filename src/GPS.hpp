@@ -27,7 +27,7 @@ namespace ReadieFur::EspGps
                 {
                     char c = Serial1.read();
                     if (tagLogLevel >= esp_log_level_t::ESP_LOG_VERBOSE)
-                        WRITE((const char*)&c);
+                        WRITE(c);
                     _tinyGps.encode(c);
                 }
 

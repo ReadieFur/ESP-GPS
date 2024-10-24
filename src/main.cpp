@@ -1,6 +1,6 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <esp_log.h>
+#include "Logging.hpp"
 #include "Board.h"
 #include "Config.h"
 #include "Service/ServiceManager.hpp"
@@ -17,7 +17,7 @@
 #define CHECK_SERVICE_RESULT(func) do {                                     \
         Service::EServiceResult result = func;                              \
         if (result == Service::Ok) break;                                   \
-        ESP_LOGE(pcTaskGetName(NULL), "Failed with result: %i", result);    \
+        LOGE(pcTaskGetName(NULL), "Failed with result: %i", result);    \
         abort();                                                            \
     } while (0)
 
@@ -25,7 +25,15 @@ using namespace ReadieFur;
 
 void setup()
 {
+    #ifdef DEBUG
+    esp_log_level_set("*", ESP_LOG_VERBOSE);
+    #else
+    esp_log_level_set("*", ESP_LOG_INFO);
+    #endif
+
     CHECK_SERVICE_RESULT(Service::ServiceManager::InstallService<EspGps::SerialMonitor>());
+    CHECK_SERVICE_RESULT(Service::ServiceManager::StartService<EspGps::SerialMonitor>());
+ 
     #ifdef DEBUG
     CHECK_SERVICE_RESULT(Service::ServiceManager::InstallService<Diagnostic::DiagnosticsService>());
     // CHECK_SERVICE_RESULT(Service::ServiceManager::StartService<Diagnostic::DiagnosticsService>());
@@ -41,7 +49,6 @@ void setup()
     CHECK_SERVICE_RESULT(Service::ServiceManager::InstallService<EspGps::GSM>());
     CHECK_SERVICE_RESULT(Service::ServiceManager::InstallService<EspGps::MQTT>());
 
-    CHECK_SERVICE_RESULT(Service::ServiceManager::StartService<EspGps::SerialMonitor>());
     #ifdef BATTERY_ADC
     CHECK_SERVICE_RESULT(Service::ServiceManager::StartService<EspGps::Battery>());
     #endif
