@@ -181,6 +181,7 @@ namespace ReadieFur::EspGps
 
         GSM()
         {
+            //TODO: Possibly turn off the modem here and leave it off until the service is started.
             ServiceEntrypointStackDepth += 1024;
             ServiceEntrypointPriority = configMAX_PRIORITIES * 0.4;
         }

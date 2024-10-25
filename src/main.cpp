@@ -17,7 +17,7 @@
 #define CHECK_SERVICE_RESULT(func) do {                                     \
         Service::EServiceResult result = func;                              \
         if (result == Service::Ok) break;                                   \
-        LOGE(pcTaskGetName(NULL), "Failed with result: %i", result);    \
+        LOGE(pcTaskGetName(NULL), "Failed with result: %i", result);        \
         abort();                                                            \
     } while (0)
 
