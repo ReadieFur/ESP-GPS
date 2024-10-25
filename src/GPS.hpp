@@ -18,7 +18,7 @@ namespace ReadieFur::EspGps
     protected:
         void RunServiceImpl() override
         {
-            Serial1.begin(9600, SERIAL_8N1, GPS_RX, GPS_TX);
+            PowerOn();
 
             while (!ServiceCancellationToken.IsCancellationRequested())
             {
@@ -36,13 +36,49 @@ namespace ReadieFur::EspGps
                 vTaskDelay(pdMS_TO_TICKS(1000 / 5));
             }
 
+            PowerOff();
+        }
+
+        void SetupGPIO()
+        {
+            #ifdef GPS_PPS
+            pinMode(GPS_PPS, INPUT_PULLDOWN);
+            #endif
+            #ifdef GPS_WAKEUP
+            pinMode(GPS_PPS, INPUT_PULLDOWN);
+            #endif
+            pinMode(GPS_RX, INPUT_PULLDOWN);
+            pinMode(GPS_TX, OUTPUT);
+        }
+
+        void PowerOn()
+        {
+            Serial1.begin(9600, SERIAL_8N1, GPS_RX, GPS_TX);
+            #ifdef GPS_WAKEUP
+            gpio_hold_dis((gpio_num_t)GPS_WAKEUP);
+            digitalWrite(GPS_WAKEUP, !GPS_SLEEP_LEVEL);
+            #endif
+        }
+
+        void PowerOff()
+        {
             Serial1.end();
+            #ifdef GPS_WAKEUP
+            digitalWrite(GPS_WAKEUP, GPS_SLEEP_LEVEL);
+            gpio_hold_en((gpio_num_t)GPS_WAKEUP);
+            #endif
         }
 
     public:
         GPS()
         {
             ServiceEntrypointStackDepth += 1024;
+            SetupGPIO();
+        }
+
+        ~GPS()
+        {
+            PowerOff();
         }
     };
 };

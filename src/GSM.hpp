@@ -41,30 +41,6 @@ namespace ReadieFur::EspGps
         }
         #endif
 
-        bool HardResetModem()
-        {
-            #ifdef MODEM_POWERON
-            digitalWrite(MODEM_POWERON, LOW);
-            vTaskDelay(pdMS_TO_TICKS(500));
-            digitalWrite(MODEM_POWERON, HIGH);
-            #endif
-
-            digitalWrite(MODEM_RESET, LOW); //TODO: Check if I need to change this?
-
-            #ifdef MODEM_PWRKEY
-            digitalWrite(MODEM_PWRKEY, LOW);
-            vTaskDelay(pdMS_TO_TICKS(100));
-            digitalWrite(MODEM_PWRKEY, HIGH);
-            vTaskDelay(pdMS_TO_TICKS(1000));
-            digitalWrite(MODEM_PWRKEY, LOW);
-            #endif
-
-            //Wait for modem to be ready.
-            vTaskDelay(pdMS_TO_TICKS(3000));
-
-            return _modem->init();
-        }
-
         bool ValidateConnection()
         {
             _mutex.lock();
@@ -127,10 +103,87 @@ namespace ReadieFur::EspGps
             return true;
         }
 
+        void SetupGPIO()
+        {
+            #ifdef BOARD_PWR
+            pinMode(BOARD_PWR, OUTPUT);
+            #endif
+            #ifdef MODEM_POWERON
+            pinMode(MODEM_POWERON, OUTPUT);
+            #endif
+            #ifdef MODEM_DTR
+            pinMode(MODEM_DTR, OUTPUT);
+            #endif
+            #ifdef MODEM_PWRKEY
+            pinMode(MODEM_PWRKEY, OUTPUT);
+            #endif
+            #ifdef MODEM_RING
+            pinMode(MODEM_RING, INPUT_PULLUP);
+            #endif
+            pinMode(MODEM_RESET, OUTPUT);
+            pinMode(MODEM_TX, OUTPUT);
+            pinMode(MODEM_RX, INPUT_PULLDOWN);
+        }
+
+        void PowerOn()
+        {
+            Serial2.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
+
+            #ifdef MODEM_POWERON
+            digitalWrite(MODEM_POWERON, HIGH);
+            #endif
+
+            #ifdef MODEM_RESET
+            gpio_hold_dis((gpio_num_t)MODEM_RESET);
+            digitalWrite(MODEM_RESET, !MODEM_RESET_LEVEL);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            digitalWrite(MODEM_RESET, MODEM_RESET_LEVEL);
+            vTaskDelay(pdMS_TO_TICKS(2600));
+            digitalWrite(MODEM_RESET, !MODEM_RESET_LEVEL);
+            #endif
+
+            #ifdef MODEM_DTR
+            digitalWrite(MODEM_DTR, LOW);
+            #endif
+
+            #ifdef MODEM_PWRKEY
+            digitalWrite(MODEM_PWRKEY, LOW);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            digitalWrite(MODEM_PWRKEY, HIGH);
+            vTaskDelay(pdMS_TO_TICKS(300));
+            digitalWrite(MODEM_PWRKEY, LOW);
+            #endif
+        }
+
+        void PowerOff()
+        {
+            if (_modem != nullptr)
+            {
+                _modem->poweroff();
+                vTaskDelay(pdMS_TO_TICKS(100));
+            }
+
+            Serial2.end();
+
+            #ifdef MODEM_DTR
+            digitalWrite(MODEM_DTR, HIGH);
+            #endif
+
+            #ifdef MODEM_POWERON
+            digitalWrite(MODEM_POWERON, LOW);
+            #endif
+
+            #ifdef MODEM_RESET
+            digitalWrite(MODEM_RESET, !MODEM_RESET_LEVEL);
+            gpio_hold_en((gpio_num_t)MODEM_RESET);
+            #endif
+        }
+
     protected:
         void RunServiceImpl() override
         {
-            Serial2.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
+            PowerOn();
+
             #ifdef DEBUG
             _debugger = new StreamDebugger(Serial2, &DbgStream);
             _modem = new TinyGsm(*_debugger);
@@ -139,18 +192,8 @@ namespace ReadieFur::EspGps
             _modem = new TinyGsm(Serial2);
             #endif
 
-            #ifdef MODEM_POWERON
-            pinMode(MODEM_POWERON, OUTPUT);
-            #endif
-            pinMode(MODEM_RESET, OUTPUT);
-            #ifdef MODEM_PWRKEY
-            pinMode(MODEM_PWRKEY, OUTPUT);
-            #endif
-            #ifdef MODEM_RING
-            pinMode(MODEM_RING, INPUT_PULLUP);
-            #endif
-
-            if (!HardResetModem())
+            vTaskDelay(pdMS_TO_TICKS(2000));
+            if (!_modem->init())
             {
                 LOGE(nameof(GSM), "Failed to start modem.");
                 abort();
@@ -171,9 +214,10 @@ namespace ReadieFur::EspGps
             while (!ServiceCancellationToken.IsCancellationRequested())
             {
                 ValidateConnection();
-
                 vTaskDelay(pdMS_TO_TICKS(1000));
             }
+
+            PowerOff();
         }
 
     public:
@@ -181,13 +225,15 @@ namespace ReadieFur::EspGps
 
         GSM()
         {
-            //TODO: Possibly turn off the modem here and leave it off until the service is started.
             ServiceEntrypointStackDepth += 1024;
             ServiceEntrypointPriority = configMAX_PRIORITIES * 0.4;
+            SetupGPIO();
         }
 
         ~GSM()
         {
+            PowerOff();
+
             if (_modem != nullptr)
                 delete _modem;
             _modem = nullptr;

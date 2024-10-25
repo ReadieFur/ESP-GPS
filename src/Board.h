@@ -5,14 +5,15 @@
 #define MODEM_PWRKEY                    4
 #define MODEM_POWERON                   12
 #define MODEM_RESET                     5
+#define MODEM_RESET_LEVEL               HIGH
+#define MODEM_DTR                       25
+#define TINY_GSM_MODEM_A7670
 
 #define GPS_TX                          21
 #define GPS_RX                          22
 #define GPS_PPS                         23
 #define GPS_WAKEUP                      19
-#ifndef TINY_GSM_MODEM_A7670
-#define TINY_GSM_MODEM_A7670
-#endif
+#define GPS_SLEEP_LEVEL                 HIGH
 
 #define MPU_INT                         33
 #define MPU_SDA                         18

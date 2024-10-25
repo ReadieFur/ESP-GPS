@@ -49,6 +49,8 @@ void setup()
     CHECK_SERVICE_RESULT(Service::ServiceManager::InstallService<EspGps::GSM>());
     CHECK_SERVICE_RESULT(Service::ServiceManager::InstallService<EspGps::MQTT>());
 
+    gpio_deep_sleep_hold_en();
+
     #ifdef BATTERY_ADC
     CHECK_SERVICE_RESULT(Service::ServiceManager::StartService<EspGps::Battery>());
     #endif
