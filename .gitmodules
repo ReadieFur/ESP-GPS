@@ -2,3 +2,7 @@
 	path = lib/TinyGSM
 	url = https://github.com/lewisxhe/TinyGSM
 	branch = master
+[submodule "lib/esp-libs"]
+	path = lib/esp-libs
+	url = https://github.com/ReadieFur/esp32-libs
+	branch = development
