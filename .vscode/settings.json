@@ -71,6 +71,7 @@
         "queue": "cpp",
         "regex": "cpp",
         "typeindex": "cpp",
-        "esp32-hal-uart.c": "cpp"
+        "esp32-hal-uart.c": "cpp",
+        "bitset": "cpp"
     }
 }
