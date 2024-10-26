@@ -1,5 +1,6 @@
 #pragma once
 
+#include <freertos/FreeRTOS.h>
 #include "Service/AService.hpp"
 #include <freertos/FreeRTOSConfig.h>
 #include "Board.h"
@@ -19,31 +20,14 @@
 #include <functional>
 #include <queue>
 #include "Event/CancellationToken.hpp"
-#include <memory>
 #include <freertos/task.h>
-#include <utility>
+#include <GSMAction.hpp>
 
 namespace ReadieFur::EspGps
 {
     class GSM : public Service::AService
     {
     private:
-        enum EActionState
-        {
-            Waiting,
-            Processing,
-            Processed,
-            Failed
-        };
-
-        struct SAction
-        {
-            std::function<void()> action;
-            Event::CancellationTokenSource cts;
-            EActionState state = EActionState::Waiting;
-            uint32_t stackSize;
-        };
-
         #ifdef DEBUG
         StreamDebugger* _debugger;
         #endif
@@ -52,7 +36,7 @@ namespace ReadieFur::EspGps
         std::map<int, TinyGsmClient*> _clients;
         Event::ManualResetEvent _connectedEvent;
         TaskHandle_t _actionQueueTask;
-        std::queue<std::shared_ptr<SAction>> _actionQueue;
+        std::queue<GSMAction**> _actionQueue;
 
         #ifdef DEBUG
         void RefreshDebugStream()
@@ -215,48 +199,20 @@ namespace ReadieFur::EspGps
 
                     self->WaitForConnection();
 
-                    std::shared_ptr<SAction> actionObj = self->_actionQueue.front();
-
-                    if (actionObj->cts.IsCancelled())
-                    {
-                        self->_actionQueue.pop();
-                        portYIELD(); //Allow other higher priority tasks to run.
-                        continue;
-                    }
-
-                    TaskFunction_t actionTask = [](void* taskParam)
-                    {
-                        auto taskParamsLocal = *reinterpret_cast<std::pair<Event::ManualResetEvent, std::shared_ptr<SAction>>*>(taskParam);
-                        taskParamsLocal.second->action();
-                        taskParamsLocal.first.Set();
-                        vTaskDelete(NULL);
-                    };
-
-                    std::pair<Event::ManualResetEvent, std::shared_ptr<SAction>> taskParams;
-                    taskParams.second = actionObj;
-                    char subtaskNameBuf[configMAX_TASK_NAME_LEN];
-                    sprintf(subtaskNameBuf, "gsmact%09d", xTaskGetTickCount());
-                    TaskHandle_t subtaskHandle;
-
                     self->_mutex.lock();
-                    if (xTaskCreate(actionTask, subtaskNameBuf, actionObj->stackSize, &taskParams, self->ServiceEntrypointPriority, &subtaskHandle) != pdPASS)
-                    {
-                        self->_mutex.unlock();
-                        actionObj->state = EActionState::Failed;
-                        self->_actionQueue.pop();
-                        portYIELD();
-                        continue;
-                    }
 
-                    //TODO: Pay attention to the cts here.
-                    actionObj->state = EActionState::Processing;
-                    taskParams.first.WaitOne(portMAX_DELAY);
-                    self->_mutex.unlock();
-                    actionObj->state = EActionState::Processed;
-                    actionObj->cts.Cancel();
-
+                    GSMAction** reference = self->_actionQueue.front(); //Transfer ownership from queue to actionObj unique_ptr.
                     self->_actionQueue.pop();
-                    portYIELD();
+                    if (*reference != nullptr && (*reference)->GetState() & GSMAction::EState::Waiting)
+                    {
+                        (*reference)->ProcessTask();
+                        (*reference)->WaitForState(GSMAction::EState::Processed, portMAX_DELAY);
+                    }
+                    free(reference);
+
+                    self->_mutex.unlock();
+
+                    portYIELD(); //Allow other higher priority tasks to run.
                 }
 
                 ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
@@ -309,6 +265,12 @@ namespace ReadieFur::EspGps
             {
                 ValidateConnection();
                 vTaskDelay(pdMS_TO_TICKS(1000));
+            }
+
+            while (eTaskStateGet(_actionQueueTask) != eTaskState::eDeleted)
+            {
+                xTaskNotifyGive(_actionQueueTask);
+                vTaskDelay(pdMS_TO_TICKS(100));
             }
 
             PowerOff();
@@ -406,32 +368,34 @@ namespace ReadieFur::EspGps
         }
 
         //From my testing I have found that asynchronous communication causes errors on the GSM module, so instead we will create an action queue.
-        //TODO: Possibly pass a stack size to be used for this task.
-        bool QueueAction(std::function<void()> action, TickType_t timeout = portMAX_DELAY, uint32_t stackSize = configIDLE_TASK_STACK_SIZE)
+        GSMAction::EState QueueAction(std::function<void()> action, uint32_t stackSize = configIDLE_TASK_STACK_SIZE, TickType_t timeout = portMAX_DELAY)
         {
             //Don't mutex lock here.
 
             if (_actionQueueTask == nullptr)
                 abort(); //Not setup.
 
-            //TODO: Switch to a different solution here as I believe this shared pointer is causing a memory leak.
-            std::shared_ptr<SAction> actionObj = std::make_shared<SAction>();
-            if (actionObj == nullptr)
+            GSMAction actionObj = GSMAction(action, stackSize, timeout);
+            GSMAction** reference = static_cast<GSMAction**>(malloc(sizeof(GSMAction**)));
+            if (reference == nullptr)
             {
                 LOGE(nameof(GSM), "Failed to queue action, out of memory.");
-                return false;
+                return GSMAction::EState::Failed;
             }
+            *reference = &actionObj;
 
-            actionObj->action = action;
-            actionObj->stackSize = stackSize;
-            actionObj->cts.CancelAfter(timeout);
-
-            _actionQueue.push(actionObj);
+            _actionQueue.push(reference);
             xTaskNotifyGive(_actionQueueTask);
 
-            actionObj->cts.GetToken().WaitForCancellation();
+            auto a = actionObj.WaitForState(static_cast<GSMAction::EState>(GSMAction::EState::Timeout | GSMAction::EState::Processed), timeout);
+            if (actionObj.GetState() & GSMAction::EState::Processing)
+            {
+                //Even though we may have timed out, at this point wait for the processing to handle the deallocation of memory properly.
+                actionObj.WaitForState(GSMAction::EState::Processed, portMAX_DELAY);
+            }
 
-            return actionObj->state == EActionState::Processed;
+            *reference = nullptr;
+            return actionObj.GetState();
         }
     };
 };
