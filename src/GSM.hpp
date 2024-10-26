@@ -16,12 +16,34 @@
 #include <mutex>
 #include "Event/ManualResetEvent.hpp"
 #include "DebugStream.hpp"
+#include <functional>
+#include <queue>
+#include "Event/CancellationToken.hpp"
+#include <memory>
+#include <freertos/task.h>
+#include <utility>
 
 namespace ReadieFur::EspGps
 {
     class GSM : public Service::AService
     {
     private:
+        enum EActionState
+        {
+            Waiting,
+            Processing,
+            Processed,
+            Failed
+        };
+
+        struct SAction
+        {
+            std::function<void()> action;
+            Event::CancellationTokenSource cts;
+            EActionState state = EActionState::Waiting;
+            uint32_t stackSize;
+        };
+
         #ifdef DEBUG
         StreamDebugger* _debugger;
         #endif
@@ -29,14 +51,16 @@ namespace ReadieFur::EspGps
         std::mutex _mutex;
         std::map<int, TinyGsmClient*> _clients;
         Event::ManualResetEvent _connectedEvent;
+        TaskHandle_t _actionQueueTask;
+        std::queue<std::shared_ptr<SAction>> _actionQueue;
 
         #ifdef DEBUG
         void RefreshDebugStream()
         {
-            #if false
-            _debugger->DumpStream = esp_log_level_get(nameof(GPS)) >= esp_log_level_t::ESP_LOG_VERBOSE ? &DbgStream : nullptr;
+            #if true
+            _debugger->DumpStream = esp_log_level_get(nameof(GPS)) >= esp_log_level_t::ESP_LOG_VERBOSE && !_connectedEvent.IsSet() ? &DbgStream : nullptr;
             #else
-            _debugger->DumpStream = _connectedEvent.IsSet() ? nullptr : &DbgStream;
+            _debugger->DumpStream = esp_log_level_get(nameof(GPS)) >= esp_log_level_t::ESP_LOG_VERBOSE ? &DbgStream : nullptr;
             #endif
         }
         #endif
@@ -179,6 +203,68 @@ namespace ReadieFur::EspGps
             #endif
         }
 
+        static void ProcessActionQueue(void* param)
+        {
+            GSM* self = reinterpret_cast<GSM*>(param);
+
+            while (!self->ServiceCancellationToken.IsCancellationRequested())
+            {
+                while (!self->ServiceCancellationToken.IsCancellationRequested() && !self->_actionQueue.empty())
+                {
+                    ulTaskNotifyTake(pdTRUE, 0);
+
+                    self->WaitForConnection();
+
+                    std::shared_ptr<SAction> actionObj = self->_actionQueue.front();
+
+                    if (actionObj->cts.IsCancelled())
+                    {
+                        self->_actionQueue.pop();
+                        portYIELD(); //Allow other higher priority tasks to run.
+                        continue;
+                    }
+
+                    TaskFunction_t actionTask = [](void* taskParam)
+                    {
+                        auto taskParamsLocal = *reinterpret_cast<std::pair<Event::ManualResetEvent, std::shared_ptr<SAction>>*>(taskParam);
+                        taskParamsLocal.second->action();
+                        taskParamsLocal.first.Set();
+                        vTaskDelete(NULL);
+                    };
+
+                    std::pair<Event::ManualResetEvent, std::shared_ptr<SAction>> taskParams;
+                    taskParams.second = actionObj;
+                    char subtaskNameBuf[configMAX_TASK_NAME_LEN];
+                    sprintf(subtaskNameBuf, "gsmact%09d", xTaskGetTickCount());
+                    TaskHandle_t subtaskHandle;
+
+                    self->_mutex.lock();
+                    if (xTaskCreate(actionTask, subtaskNameBuf, actionObj->stackSize, &taskParams, self->ServiceEntrypointPriority, &subtaskHandle) != pdPASS)
+                    {
+                        self->_mutex.unlock();
+                        actionObj->state = EActionState::Failed;
+                        self->_actionQueue.pop();
+                        portYIELD();
+                        continue;
+                    }
+
+                    //TODO: Pay attention to the cts here.
+                    actionObj->state = EActionState::Processing;
+                    taskParams.first.WaitOne(portMAX_DELAY);
+                    self->_mutex.unlock();
+                    actionObj->state = EActionState::Processed;
+                    actionObj->cts.Cancel();
+
+                    self->_actionQueue.pop();
+                    portYIELD();
+                }
+
+                ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+            }
+
+            vTaskDelete(NULL);
+        }
+
     protected:
         void RunServiceImpl() override
         {
@@ -211,6 +297,14 @@ namespace ReadieFur::EspGps
                 return;
             }
 
+            char actionQueueTaskNameBuf[configMAX_TASK_NAME_LEN];
+            sprintf(actionQueueTaskNameBuf, "gsm%012d", xTaskGetTickCount());
+            if (xTaskCreate(ProcessActionQueue, actionQueueTaskNameBuf, configIDLE_TASK_STACK_SIZE + 1024, this, ServiceEntrypointPriority, &_actionQueueTask) != pdPASS)
+            {
+                LOGE(nameof(GSM), "Failed to create action queue task.");
+                return;
+            }
+
             while (!ServiceCancellationToken.IsCancellationRequested())
             {
                 ValidateConnection();
@@ -218,6 +312,13 @@ namespace ReadieFur::EspGps
             }
 
             PowerOff();
+
+            delete _modem;
+            _modem = nullptr;
+            #ifdef DEBUG
+            delete _debugger;
+            _debugger = nullptr;
+            #endif
         }
 
     public:
@@ -243,9 +344,13 @@ namespace ReadieFur::EspGps
             _debugger = nullptr;
         }
 
+        //TODO: Return a custom client object that puts requests in a queue.
         TinyGsmClient* CreateClient()
         {
             _mutex.lock();
+
+            if (_modem == nullptr)
+                abort(); //Not setup.
 
             //Get first free MUX ID.
             int mux = 0;
@@ -295,34 +400,37 @@ namespace ReadieFur::EspGps
             _mutex.unlock();
         }
 
-        bool IsConnected()
-        {
-            #if true
-            return _connectedEvent.IsSet();
-            #else
-            if (!_mutex.try_lock())
-            {
-                //If we failed to lock then it is likely that the connection is being tested above, so just use the cached value for now.
-                return _connectedEvent.IsSet();
-            }
-
-            _mutex.lock();
-            if (_modem->testAT(500) && _modem->isNetworkConnected() && _modem->isGprsConnected())
-            {
-                _mutex.unlock();
-                return true;
-            }
-
-            _connectedEvent.Clear();
-
-            _mutex.unlock();
-            return false;
-            #endif
-        }
-
         bool WaitForConnection(TickType_t timeout = portMAX_DELAY)
         {
             return _connectedEvent.WaitOne(timeout);
+        }
+
+        //From my testing I have found that asynchronous communication causes errors on the GSM module, so instead we will create an action queue.
+        //TODO: Possibly pass a stack size to be used for this task.
+        bool QueueAction(std::function<void()> action, TickType_t timeout = portMAX_DELAY, uint32_t stackSize = configIDLE_TASK_STACK_SIZE)
+        {
+            //Don't mutex lock here.
+
+            if (_actionQueueTask == nullptr)
+                abort(); //Not setup.
+
+            std::shared_ptr<SAction> actionObj = std::make_shared<SAction>();
+            if (actionObj == nullptr)
+            {
+                LOGE(nameof(GSM), "Failed to queue action, out of memory.");
+                return false;
+            }
+
+            actionObj->action = action;
+            actionObj->stackSize = stackSize;
+            actionObj->cts.CancelAfter(timeout);
+
+            _actionQueue.push(actionObj);
+            xTaskNotifyGive(_actionQueueTask);
+
+            actionObj->cts.GetToken().WaitForCancellation();
+
+            return actionObj->state == EActionState::Processed;
         }
     };
 };

@@ -11,7 +11,6 @@
 
 namespace ReadieFur::EspGps
 {
-    //TODO: Figure out why this class is causing a watchdog error.
     class MQTT : public Service::AService
     {
     private:
@@ -31,20 +30,14 @@ namespace ReadieFur::EspGps
 
         bool ValidateConnection()
         {
-            bool gsmConnected = _gsmService->IsConnected();
-            if (gsmConnected && _mqtt.connected())
+            //No need to check if GSM is connected as this callback will only be run if it is connected.
+            if (_mqtt.connected())
                 return true;
 
             if (_wasConnected)
             {
                 LOGW(nameof(MQTT), "Disconnected from MQTT server...");
                 _wasConnected = false;
-            }
-
-            if (!gsmConnected)
-            {
-                //Skip this attempt and try again when the connection is restored.
-                return false;
             }
 
             //Connect to MQTT broker.
@@ -59,13 +52,14 @@ namespace ReadieFur::EspGps
 
             LOGI(nameof(MQTT), "MQTT reconnected.");
             return _wasConnected = true;
+
+            return false;
         }
 
     protected:
         void RunServiceImpl() override
         {
-            //Shouldn't be null here.
-            _gsmService = GetService<GSM>();
+            _gsmService = GetService<GSM>(); //Shouldn't be null here.
             _gsmService->WaitForConnection();
             _gsmClient = _gsmService->CreateClient();
             if (_gsmClient == nullptr)
@@ -81,8 +75,13 @@ namespace ReadieFur::EspGps
 
             while (!ServiceCancellationToken.IsCancellationRequested())
             {
-                if (ValidateConnection())
-                    _mqtt.loop();
+                _gsmService->QueueAction([this]()
+                {
+                    if (ValidateConnection())
+                    {
+                        _mqtt.loop();
+                    }
+                }, portMAX_DELAY, configIDLE_TASK_STACK_SIZE + 1024);
                 vTaskDelay(pdMS_TO_TICKS(1000));
             }
 
