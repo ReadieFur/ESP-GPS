@@ -22,6 +22,7 @@
 #include <memory>
 #include <freertos/task.h>
 #include <utility>
+#include <freertos/event_groups.h>
 
 namespace ReadieFur::EspGps
 {
@@ -30,18 +31,17 @@ namespace ReadieFur::EspGps
     private:
         enum EActionState
         {
-            Waiting,
-            Processing,
-            Processed,
-            Failed
+            Timeout = 1 << 1,
+            Processing = 1 << 2,
+            Processed = 1 << 3,
+            Failed = 1 << 4
         };
-
+        
         struct SAction
         {
             std::function<void()> action;
-            Event::CancellationTokenSource cts;
-            EActionState state = EActionState::Waiting;
             uint32_t stackSize;
+            EventGroupHandle_t eventGroup;
         };
 
         #ifdef DEBUG
@@ -52,7 +52,7 @@ namespace ReadieFur::EspGps
         std::map<int, TinyGsmClient*> _clients;
         Event::ManualResetEvent _connectedEvent;
         TaskHandle_t _actionQueueTask;
-        std::queue<std::shared_ptr<SAction>> _actionQueue;
+        std::queue<SAction> _actionQueue;
 
         #ifdef DEBUG
         void RefreshDebugStream()
@@ -206,6 +206,7 @@ namespace ReadieFur::EspGps
         static void ProcessActionQueue(void* param)
         {
             GSM* self = reinterpret_cast<GSM*>(param);
+            char subtaskNameBuf[configMAX_TASK_NAME_LEN];
 
             while (!self->ServiceCancellationToken.IsCancellationRequested())
             {
@@ -215,47 +216,40 @@ namespace ReadieFur::EspGps
 
                     self->WaitForConnection();
 
-                    std::shared_ptr<SAction> actionObj = self->_actionQueue.front();
+                    SAction actionObj = self->_actionQueue.front();
+                    self->_actionQueue.pop();
 
-                    if (actionObj->cts.IsCancelled())
+                    EventBits_t bits = xEventGroupGetBits(actionObj.eventGroup);
+                    if (bits & EActionState::Timeout)
                     {
-                        self->_actionQueue.pop();
-                        portYIELD(); //Allow other higher priority tasks to run.
+                        //If a timeout has occurred then the QueueAction method will have exited leaving the event group active for this method so we must clean it up here.
+                        vEventGroupDelete(actionObj.eventGroup);
+                        portYIELD();
                         continue;
                     }
-
-                    TaskFunction_t actionTask = [](void* taskParam)
+                    xEventGroupSetBits(actionObj.eventGroup, EActionState::Processing);
+                    
+                    sprintf(subtaskNameBuf, "gsmact%09d", xTaskGetTickCount());
+                    TaskHandle_t subtaskHandle;
+                    TaskFunction_t actionTask = [](void* subtaskParam)
                     {
-                        auto taskParamsLocal = *reinterpret_cast<std::pair<Event::ManualResetEvent, std::shared_ptr<SAction>>*>(taskParam);
-                        taskParamsLocal.second->action();
-                        taskParamsLocal.first.Set();
+                        SAction* subtaskActionObj = reinterpret_cast<SAction*>(subtaskParam);
+                        subtaskActionObj->action();
+                        xEventGroupSetBits(subtaskActionObj->eventGroup, EActionState::Processed);
                         vTaskDelete(NULL);
                     };
 
-                    std::pair<Event::ManualResetEvent, std::shared_ptr<SAction>> taskParams;
-                    taskParams.second = actionObj;
-                    char subtaskNameBuf[configMAX_TASK_NAME_LEN];
-                    sprintf(subtaskNameBuf, "gsmact%09d", xTaskGetTickCount());
-                    TaskHandle_t subtaskHandle;
-
                     self->_mutex.lock();
-                    if (xTaskCreate(actionTask, subtaskNameBuf, actionObj->stackSize, &taskParams, self->ServiceEntrypointPriority, &subtaskHandle) != pdPASS)
+                    //+x on the stack for the overhead required by the task wrapper.
+                    if (xTaskCreate(actionTask, subtaskNameBuf, actionObj.stackSize + 32, &actionObj, self->ServiceEntrypointPriority, &subtaskHandle) != pdPASS)
                     {
                         self->_mutex.unlock();
-                        actionObj->state = EActionState::Failed;
-                        self->_actionQueue.pop();
+                        xEventGroupSetBits(actionObj.eventGroup, EActionState::Failed);
                         portYIELD();
                         continue;
                     }
 
-                    //TODO: Pay attention to the cts here.
-                    actionObj->state = EActionState::Processing;
-                    taskParams.first.WaitOne(portMAX_DELAY);
-                    self->_mutex.unlock();
-                    actionObj->state = EActionState::Processed;
-                    actionObj->cts.Cancel();
-
-                    self->_actionQueue.pop();
+                    xEventGroupWaitBits(actionObj.eventGroup, EActionState::Processed, pdFALSE, pdFALSE, portMAX_DELAY);
                     portYIELD();
                 }
 
@@ -407,7 +401,7 @@ namespace ReadieFur::EspGps
 
         //From my testing I have found that asynchronous communication causes errors on the GSM module, so instead we will create an action queue.
         //TODO: Possibly pass a stack size to be used for this task.
-        bool QueueAction(std::function<void()> action, TickType_t timeout = portMAX_DELAY, uint32_t stackSize = configIDLE_TASK_STACK_SIZE)
+        bool QueueAction(std::function<void()> action, uint32_t stackSize = configIDLE_TASK_STACK_SIZE, TickType_t timeout = portMAX_DELAY)
         {
             //Don't mutex lock here.
 
@@ -415,23 +409,33 @@ namespace ReadieFur::EspGps
                 abort(); //Not setup.
 
             //TODO: Switch to a different solution here as I believe this shared pointer is causing a memory leak.
-            std::shared_ptr<SAction> actionObj = std::make_shared<SAction>();
-            if (actionObj == nullptr)
+            SAction actionObj = SAction
+            {
+                .action = action,
+                .stackSize = stackSize,
+                .eventGroup = xEventGroupCreate()
+            };
+            if (actionObj.eventGroup == NULL)
             {
                 LOGE(nameof(GSM), "Failed to queue action, out of memory.");
                 return false;
             }
 
-            actionObj->action = action;
-            actionObj->stackSize = stackSize;
-            actionObj->cts.CancelAfter(timeout);
-
             _actionQueue.push(actionObj);
             xTaskNotifyGive(_actionQueueTask);
 
-            actionObj->cts.GetToken().WaitForCancellation();
+            EventBits_t bits = xEventGroupWaitBits(actionObj.eventGroup, EActionState::Processing, pdTRUE, pdFALSE, timeout);
+            if ((!bits & EActionState::Processing))
+            {
+                xEventGroupSetBits(actionObj.eventGroup, EActionState::Timeout);
+                //Let the task processor delete the event group.
+                return false;
+            }
 
-            return actionObj->state == EActionState::Processed;
+            bits = xEventGroupWaitBits(actionObj.eventGroup, EActionState::Processed | EActionState::Failed, pdFALSE, pdFALSE, portMAX_DELAY);
+            vEventGroupDelete(actionObj.eventGroup);
+
+            return bits & EActionState::Processed;
         }
     };
 };
