@@ -414,7 +414,7 @@ namespace ReadieFur::EspGps
             if (_actionQueueTask == nullptr)
                 abort(); //Not setup.
 
-            //Switch to a different solution here as I believe this shared pointer is causing a memory leak.
+            //TODO: Switch to a different solution here as I believe this shared pointer is causing a memory leak.
             std::shared_ptr<SAction> actionObj = std::make_shared<SAction>();
             if (actionObj == nullptr)
             {
