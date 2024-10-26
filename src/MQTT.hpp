@@ -81,7 +81,7 @@ namespace ReadieFur::EspGps
                     {
                         _mqtt.loop();
                     }
-                }, portMAX_DELAY, configIDLE_TASK_STACK_SIZE + 1024);
+                }, configIDLE_TASK_STACK_SIZE + 1024);
                 vTaskDelay(pdMS_TO_TICKS(1000));
             }
 
