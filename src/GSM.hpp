@@ -59,8 +59,10 @@ namespace ReadieFur::EspGps
         {
             #if true
             _debugger->DumpStream = esp_log_level_get(nameof(GPS)) >= esp_log_level_t::ESP_LOG_VERBOSE && !_connectedEvent.IsSet() ? &DbgStream : nullptr;
-            #else
+            #elif false
             _debugger->DumpStream = esp_log_level_get(nameof(GPS)) >= esp_log_level_t::ESP_LOG_VERBOSE ? &DbgStream : nullptr;
+            #else
+            _debugger->DumpStream = &DbgStream;
             #endif
         }
         #endif
@@ -250,6 +252,8 @@ namespace ReadieFur::EspGps
                     }
 
                     xEventGroupWaitBits(actionObj.eventGroup, EActionState::Processed, pdFALSE, pdFALSE, portMAX_DELAY);
+                    self->_mutex.unlock();
+
                     portYIELD();
                 }
 
@@ -316,8 +320,6 @@ namespace ReadieFur::EspGps
         }
 
     public:
-        //TODO: Create an event that can be called by the owning thread and not this thread.
-
         GSM()
         {
             ServiceEntrypointStackDepth += 1024;
@@ -437,5 +439,23 @@ namespace ReadieFur::EspGps
 
             return bits & EActionState::Processed;
         }
+
+        TinyGsm* GetModem()
+        {
+            return _modem;
+        }
+
+        // bool GetLocation(float* lat = nullptr, float* lng = nullptr, float* acc = nullptr,
+        //     int* year = nullptr, int* month = nullptr, int* day = nullptr,
+        //     int* hour = nullptr, int* minute = nullptr, int* second = nullptr,
+        //     TickType_t timeout = portMAX_DELAY)
+        // {
+        //     if (!_connectedEvent.WaitOne(timeout))
+        //         return false;
+        //     _mutex.lock();
+        //     bool retVal = _modem->getGsmLocation(lat, lng, acc, year, month, day, hour, minute, second);
+        //     _mutex.unlock();
+        //     return retVal;
+        // }
     };
 };

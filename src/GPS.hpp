@@ -12,9 +12,6 @@ namespace ReadieFur::EspGps
 {
     class GPS : public Service::AService
     {
-    private:
-        TinyGPSPlus _tinyGps;
-
     protected:
         void RunServiceImpl() override
         {
@@ -26,9 +23,11 @@ namespace ReadieFur::EspGps
                 while (Serial1.available())
                 {
                     char c = Serial1.read();
+                    #if false
                     if (tagLogLevel >= esp_log_level_t::ESP_LOG_VERBOSE)
                         WRITE(c);
-                    _tinyGps.encode(c);
+                    #endif
+                    TinyGps.encode(c);
                 }
 
                 //Going based off of the NEO-6M which has a frequency of 5Hz.
@@ -70,6 +69,8 @@ namespace ReadieFur::EspGps
         }
 
     public:
+        TinyGPSPlus TinyGps;
+
         GPS()
         {
             ServiceEntrypointStackDepth += 1024;

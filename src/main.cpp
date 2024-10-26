@@ -13,6 +13,7 @@
 #include "Diagnostic/DiagnosticsService.hpp"
 #include "MQTT.hpp"
 #include <esp_check.h>
+#include "Location.hpp"
 
 #define CHECK_SERVICE_RESULT(func) do {                                     \
         Service::EServiceResult result = func;                              \
@@ -34,10 +35,10 @@ void setup()
 
     CHECK_SERVICE_RESULT(Service::ServiceManager::InstallService<EspGps::SerialMonitor>());
     CHECK_SERVICE_RESULT(Service::ServiceManager::StartService<EspGps::SerialMonitor>());
- 
+
     #ifdef DEBUG
     CHECK_SERVICE_RESULT(Service::ServiceManager::InstallService<Diagnostic::DiagnosticsService>());
-    // CHECK_SERVICE_RESULT(Service::ServiceManager::StartService<Diagnostic::DiagnosticsService>());
+    CHECK_SERVICE_RESULT(Service::ServiceManager::StartService<Diagnostic::DiagnosticsService>());
     #endif
 
     EspGps::Storage::Init();
@@ -48,6 +49,7 @@ void setup()
     #endif
     CHECK_SERVICE_RESULT(Service::ServiceManager::InstallService<EspGps::GPS>());
     CHECK_SERVICE_RESULT(Service::ServiceManager::InstallService<EspGps::GSM>());
+    CHECK_SERVICE_RESULT(Service::ServiceManager::InstallService<EspGps::Location>());
     CHECK_SERVICE_RESULT(Service::ServiceManager::InstallService<EspGps::MQTT>());
 
     gpio_deep_sleep_hold_en();
@@ -57,6 +59,7 @@ void setup()
     #endif
     CHECK_SERVICE_RESULT(Service::ServiceManager::StartService<EspGps::GPS>());
     CHECK_SERVICE_RESULT(Service::ServiceManager::StartService<EspGps::GSM>());
+    CHECK_SERVICE_RESULT(Service::ServiceManager::StartService<EspGps::Location>());
     CHECK_SERVICE_RESULT(Service::ServiceManager::StartService<EspGps::MQTT>());
 }
 
