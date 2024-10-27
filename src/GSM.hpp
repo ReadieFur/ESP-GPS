@@ -402,7 +402,7 @@ namespace ReadieFur::EspGps
         }
 
         //From my testing I have found that asynchronous communication causes errors on the GSM module, so instead we will create an action queue.
-        //TODO: Possibly pass a stack size to be used for this task.
+        //TODO: Make this "awaitable" instead of always blocking.
         bool QueueAction(std::function<void()> action, uint32_t stackSize = configIDLE_TASK_STACK_SIZE, TickType_t timeout = portMAX_DELAY)
         {
             //Don't mutex lock here.
@@ -410,7 +410,6 @@ namespace ReadieFur::EspGps
             if (_actionQueueTask == nullptr)
                 abort(); //Not setup.
 
-            //TODO: Switch to a different solution here as I believe this shared pointer is causing a memory leak.
             SAction actionObj = SAction
             {
                 .action = action,

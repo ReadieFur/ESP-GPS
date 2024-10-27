@@ -19,7 +19,7 @@ namespace ReadieFur::EspGps
         PubSubClient _mqtt;
         String _publishTopic;
         String _subscribeTopic;
-        bool _wasConnected = false;
+        Event::ManualResetEvent _connectedEvent;
 
         static void Callback(char* topic, byte* payload, uint len)
         {
@@ -34,10 +34,10 @@ namespace ReadieFur::EspGps
             if (_mqtt.connected())
                 return true;
 
-            if (_wasConnected)
+            if (_connectedEvent.IsSet())
             {
                 LOGW(nameof(MQTT), "Disconnected from MQTT server...");
-                _wasConnected = false;
+                _connectedEvent.Clear();
             }
 
             //Connect to MQTT broker.
@@ -51,9 +51,8 @@ namespace ReadieFur::EspGps
             _mqtt.subscribe(_subscribeTopic.c_str());
 
             LOGI(nameof(MQTT), "MQTT reconnected.");
-            return _wasConnected = true;
-
-            return false;
+            _connectedEvent.Set();
+            return true;
         }
 
     protected:
@@ -103,6 +102,25 @@ namespace ReadieFur::EspGps
         const char* GetPublishTopic()
         {
             return _publishTopic.c_str();
+        }
+
+        bool WaitForConnection(TickType_t timeout = portMAX_DELAY)
+        {
+            return _connectedEvent.WaitOne(timeout);
+        }
+
+        bool Publish(const char* payload, uint32_t stackSize = configIDLE_TASK_STACK_SIZE, TickType_t timeout = portMAX_DELAY)
+        {
+            if (!WaitForConnection(timeout))
+                return false;
+
+            bool publishResult = false;
+            bool gsmResult = _gsmService->QueueAction([this, &publishResult, payload]()
+            {
+                publishResult = _mqtt.publish(GetPublishTopic(), payload);
+            }, stackSize, timeout);
+
+            return gsmResult && publishResult;
         }
     };
 };

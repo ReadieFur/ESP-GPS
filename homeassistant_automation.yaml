@@ -1,0 +1,17 @@
+alias: EspGps<MQTT_CLIENT_ID>MQTTData
+trigger:
+  - platform: mqtt
+    topic: <MQTT_TOPIC>/<MQTT_CLIENT_ID>/data
+action:
+  - service: device_tracker.see
+    data:
+      dev_id: <MQTT_CLIENT_ID>
+      gps:
+        - "{{ trigger.payload_json.lat }}"
+        - "{{ trigger.payload_json.lng }}"
+      attributes:
+        source_type: "{{ ['Invalid', 'GPS', 'GSM'][trigger.payload_json.type] }}"
+        gps_accuracy: "{{ trigger.payload_json.acc }}"
+        last_seen: "{{ trigger.payload_json.time | timestamp_local }}"
+        battery: "{{ trigger.payload_json.bat / 1000 }}v"
+        battery_state: "{{ ['Charging', 'Discharging', 'Low', 'Critical'][trigger.payload_json.chg] }}"

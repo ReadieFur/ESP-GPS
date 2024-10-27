@@ -14,6 +14,7 @@
 #include "MQTT.hpp"
 #include <esp_check.h>
 #include "Location.hpp"
+#include "Publish.hpp"
 
 #define CHECK_SERVICE_RESULT(func) do {                                     \
         Service::EServiceResult result = func;                              \
@@ -51,6 +52,7 @@ void setup()
     CHECK_SERVICE_RESULT(Service::ServiceManager::InstallService<EspGps::GSM>());
     CHECK_SERVICE_RESULT(Service::ServiceManager::InstallService<EspGps::Location>());
     CHECK_SERVICE_RESULT(Service::ServiceManager::InstallService<EspGps::MQTT>());
+    CHECK_SERVICE_RESULT(Service::ServiceManager::InstallService<EspGps::Publish>());
 
     gpio_deep_sleep_hold_en();
 
@@ -61,6 +63,7 @@ void setup()
     CHECK_SERVICE_RESULT(Service::ServiceManager::StartService<EspGps::GSM>());
     CHECK_SERVICE_RESULT(Service::ServiceManager::StartService<EspGps::Location>());
     CHECK_SERVICE_RESULT(Service::ServiceManager::StartService<EspGps::MQTT>());
+    CHECK_SERVICE_RESULT(Service::ServiceManager::StartService<EspGps::Publish>());
 }
 
 void loop()
