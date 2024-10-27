@@ -108,9 +108,9 @@ namespace ReadieFur::EspGps
                 if (valid)
                 {
                     gsmSample.type = ELocationType::GSM;
-                    gsmSample.latitude = lat;
-                    gsmSample.longitude = lng;
-                    gsmSample.accuracy = acc;
+                    gsmSample.latitude = (double)lat;
+                    gsmSample.longitude = (double)lng;
+                    gsmSample.accuracy = (double)acc;
                     timeInfo.tm_mon -= 1;
                     timeInfo.tm_year -= 1900;
                     gsmSample.timestamp = std::mktime(&timeInfo);
@@ -127,8 +127,9 @@ namespace ReadieFur::EspGps
                 outLocation.type = ELocationType::GPS;
 
                 size_t gsmSampleCount = _gpsSampleQueue.size();
-                outLocation.latitude = outLocation.longitude = outLocation.accuracy = 0; //Ensure these are set to 0 as we will be working on them directly.
-                int timeSampleCount = 0, hdopSampleCount = 0;
+                outLocation.latitude = outLocation.longitude = outLocation.accuracy = outLocation.timestamp = 0; //Ensure these are set to 0 as we will be working on them directly.
+                size_t timeSampleCount = 0, hdopSampleCount = 0;
+                long long timeSamples = 0; //TODO: Change this as in the far future it will encounter the same overflow issue as before when I was using a regular long.
                 for (size_t i = 0; i < gsmSampleCount; i++)
                 {
                     SGPSSample gpsSample = _gpsSampleQueue.at(i);
@@ -142,7 +143,7 @@ namespace ReadieFur::EspGps
                     if (gpsSample.timestamp != 0)
                     {
                         timeSampleCount++;
-                        outLocation.timestamp += gpsSample.timestamp;
+                        timeSamples += gpsSample.timestamp;
                     }
                 }
                 outLocation.latitude /= gsmSampleCount;
@@ -155,7 +156,9 @@ namespace ReadieFur::EspGps
                 }
 
                 if (timeSampleCount != 0)
-                    outLocation.timestamp /= timeSampleCount;
+                {
+                    outLocation.timestamp = (long)(timeSamples / timeSampleCount);
+                }
             }
             else if (_gsmSample.type != ELocationType::Invalid)
             {
@@ -183,10 +186,10 @@ namespace ReadieFur::EspGps
                 while (!self->ServiceCancellationToken.IsCancellationRequested())
                 {
                     self->GetLocation(location);
-                    LOGD(nameof(Location), "Type:%i, Lat: %d, Lng: %d, Acc: %d, Time:%li", location.type, location.latitude, location.longitude, location.accuracy, location.timestamp);
+                    LOGD(nameof(Location), "Type:%i, Lat: %.6f, Lng: %.6f, Acc: %.6f, Time: %ld", location.type, location.latitude, location.longitude, location.accuracy, location.timestamp);
                     vTaskDelay(pdMS_TO_TICKS(5000));
                 }
-            }, "LocationDbg", configIDLE_TASK_STACK_SIZE + 1024, this, ServiceEntrypointPriority, nullptr);
+            }, "location_dbg", configIDLE_TASK_STACK_SIZE + 1024, this, ServiceEntrypointPriority, nullptr);
             #endif
 
             while (!ServiceCancellationToken.IsCancellationRequested())
@@ -198,7 +201,7 @@ namespace ReadieFur::EspGps
                         _gpsSampleQueue.pop_front();
                 }
                 #ifdef CALCULATE_LOCATION_ON_REQUEST
-                // _mutex.lock();
+                _mutex.lock();
                 #endif
                 SampleGPS();
 
@@ -207,7 +210,7 @@ namespace ReadieFur::EspGps
                     SampleGSM();
 
                 #ifdef CALCULATE_LOCATION_ON_REQUEST
-                // _mutex.unlock();
+                _mutex.unlock();
                 #else
                 SLocation location;
                 CalculateLocation(location);
@@ -233,9 +236,9 @@ namespace ReadieFur::EspGps
         void GetLocation(SLocation& outLocation)
         {
             #ifdef CALCULATE_LOCATION_ON_REQUEST
-            // _mutex.lock();
+            _mutex.lock();
             CalculateLocation(outLocation);
-            // _mutex.unlock();
+            _mutex.unlock();
             #else
             outLocation = _location;
             #endif
