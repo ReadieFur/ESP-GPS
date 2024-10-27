@@ -23,7 +23,7 @@ namespace ReadieFur::EspGps
                 while (Serial1.available())
                 {
                     char c = Serial1.read();
-                    #if false
+                    #if true
                     if (tagLogLevel >= esp_log_level_t::ESP_LOG_VERBOSE)
                         WRITE(c);
                     #endif

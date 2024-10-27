@@ -178,7 +178,7 @@ namespace ReadieFur::EspGps
 
             _gsmService->WaitForConnection();
 
-            #if defined(DEBUG) && true
+            #if defined(DEBUG) && false
             xTaskCreate([](void* param)
             {
                 Location* self = reinterpret_cast<Location*>(param);
@@ -189,7 +189,7 @@ namespace ReadieFur::EspGps
                     LOGD(nameof(Location), "Type:%i, Lat: %.6f, Lng: %.6f, Acc: %.6f, Time: %ld", location.type, location.latitude, location.longitude, location.accuracy, location.timestamp);
                     vTaskDelay(pdMS_TO_TICKS(5000));
                 }
-            }, "location_dbg", configIDLE_TASK_STACK_SIZE + 1024, this, ServiceEntrypointPriority, nullptr);
+            }, "location_dbg", configIDLE_TASK_STACK_SIZE + 1024 + 512, this, ServiceEntrypointPriority, nullptr);
             #endif
 
             while (!ServiceCancellationToken.IsCancellationRequested())
@@ -228,6 +228,11 @@ namespace ReadieFur::EspGps
         Location()
         {
             ServiceEntrypointStackDepth += 1024;
+            #ifndef CALCULATE_LOCATION_ON_REQUEST
+            //Some extras space is needed for this.
+            //TODO: Figure out how much space I can safely get away with here.
+            ServiceEntrypointStackDepth += 256;
+            #endif
             AddDependencyType<EspGps::GPS>();
             AddDependencyType<EspGps::GSM>();
             _gpsSampleQueue.resize(5);
