@@ -67,12 +67,21 @@ namespace ReadieFur::EspGps
 
             EState oldState = _state;
 
-            if (_voltage <= BATTERY_CRIT_VOLTAGE)
-                _state = EState::Critical;
-            else if (_voltage <= BATTERY_LOW_VOLTAGE)
-                _state = EState::Low;
+            if (_voltage < NO_BATTERY_VOLTAGE)
+            {
+                _state = EState::Charging;
+            }
+            else
+            {
+                if (_voltage <= BATTERY_CRIT_VOLTAGE)
+                    _state = EState::Critical;
+                else if (_voltage <= BATTERY_LOW_VOLTAGE)
+                    _state = EState::Low;
 
-            _state = (EState)(_state | (_chargeVoltage >= CHG_VOLTAGE_MIN ? EState::Charging : EState::Discharging));
+                _state = (EState)(_state | (_chargeVoltage >= CHG_VOLTAGE_MIN ? EState::Charging : EState::Discharging));
+            }
+
+            
 
             if (oldState != _state)
                 OnStateChanged.Dispatch(_state);
@@ -87,6 +96,15 @@ namespace ReadieFur::EspGps
             {
                 UpdateVoltage();
                 LOGV(nameof(Battery), "Voltage: Battery: %u, Charge: %u", _voltage, _chargeVoltage);
+
+                #ifdef DEBUG
+                if (_state & Critical)
+                {
+                    LOGD(nameof(Battery), "Entering long sleep.");
+                    esp_deep_sleep(UINT64_MAX);
+                }
+                #endif
+
                 vTaskDelay(pdMS_TO_TICKS(5 * 1000));
             }
         }
