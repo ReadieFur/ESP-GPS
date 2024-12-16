@@ -19,6 +19,10 @@
 #include "Publish.hpp"
 #include "Checkpoint.hpp"
 
+#ifdef DEBUG
+// #define TEST_GPS
+#endif
+
 #define CHECK_SERVICE_RESULT(func) do {                                     \
         ReadieFur::Service::EServiceResult result = func;                   \
         if (result == ReadieFur::Service::Ok) break;                        \
@@ -74,6 +78,7 @@ void setup()
     #endif
 
     Storage::Init();
+
     #ifdef MPU_INT
     // Motion::Configure();
     #endif
@@ -86,6 +91,16 @@ void setup()
     #ifdef DEBUG
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<ReadieFur::Diagnostic::DiagnosticsService>());
     // CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<ReadieFur::Diagnostic::DiagnosticsService>());
+    #endif
+
+    #ifdef TEST_GPS
+    esp_log_level_set(nameof(GPS), ESP_LOG_VERBOSE);
+    esp_log_level_set(nameof(Location), ESP_LOG_VERBOSE);
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GPS>());
+    // CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<Location>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GPS>());
+    // CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<Location>());
+    return;
     #endif
 
     #ifdef BATTERY_ADC

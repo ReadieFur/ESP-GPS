@@ -10,7 +10,8 @@ namespace ReadieFur::EspGps
     protected:
         void RunServiceImpl() override
         {
-            Serial.begin(115200, SERIAL_8N1, -1, -1); //Default pinout for esp32 when -1.
+            // Serial.begin(115200, SERIAL_8N1, -1, -1); //Default pinout for esp32 when -1.
+            Serial.begin(115200);
 
             while (!ServiceCancellationToken.IsCancellationRequested())
             {

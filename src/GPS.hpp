@@ -12,32 +12,7 @@ namespace ReadieFur::EspGps
 {
     class GPS : public Service::AService
     {
-    protected:
-        void RunServiceImpl() override
-        {
-            PowerOn();
-
-            while (!ServiceCancellationToken.IsCancellationRequested())
-            {
-                esp_log_level_t tagLogLevel = esp_log_level_get(nameof(GPS));
-                while (Serial1.available())
-                {
-                    char c = Serial1.read();
-                    #if true
-                    if (tagLogLevel >= esp_log_level_t::ESP_LOG_VERBOSE)
-                        WRITE(c);
-                    #endif
-                    TinyGps.encode(c);
-                }
-
-                //Going based off of the NEO-6M which has a frequency of 5Hz.
-                //I should probably scan faster than this however not much data is output so the Rx buffer shouldn't get full.
-                vTaskDelay(pdMS_TO_TICKS(1000 / 5));
-            }
-
-            PowerOff();
-        }
-
+    private:
         void SetupGPIO()
         {
             #ifdef GPS_PPS
@@ -66,6 +41,42 @@ namespace ReadieFur::EspGps
             digitalWrite(GPS_WAKEUP, GPS_SLEEP_LEVEL);
             gpio_hold_en((gpio_num_t)GPS_WAKEUP);
             #endif
+        }
+
+        void LogLocation()
+        {
+            if (TinyGps.location.isValid())
+            {
+                LOGI(nameof(Location), "Location: %f, %f", TinyGps.location.lat(), TinyGps.location.lng());
+            }
+        }
+
+    protected:
+        void RunServiceImpl() override
+        {
+            PowerOn();
+
+            while (!ServiceCancellationToken.IsCancellationRequested())
+            {
+                bool logVerbose = esp_log_level_get(nameof(GPS)) >= esp_log_level_t::ESP_LOG_VERBOSE;
+                while (Serial1.available())
+                {
+                    char c = Serial1.read();
+                    #if true
+                    if (logVerbose)
+                        WRITE(c);
+                    #endif
+                    bool encodeResult = TinyGps.encode(c);
+                    if (encodeResult && logVerbose)
+                        LogLocation();
+                }
+
+                //Going based off of the NEO-6M which has a frequency of 5Hz.
+                //I should probably scan faster than this however not much data is output so the Rx buffer shouldn't get full.
+                vTaskDelay(pdMS_TO_TICKS(1000 / 5));
+            }
+
+            PowerOff();
         }
 
     public:
