@@ -10,6 +10,7 @@
 #include <chrono>
 #include <ctime>
 #include <mutex>
+#include "SLocation.h"
 
 #define CALCULATE_LOCATION_ON_REQUEST
 
@@ -17,34 +18,13 @@ namespace ReadieFur::EspGps
 {
     class Location : public Service::AService
     {
-    public:
-        enum ELocationType
-        {
-            Invalid,
-            GPS,
-            GSM
-        };
-
-        struct SLocation
-        {
-            ELocationType type = ELocationType::Invalid;
-            time_t timestamp = 0;
-            double latitude = 0, longitude = 0, accuracy = 0;
-        };
-
     private:
-        struct SGPSSample
-        {
-            time_t timestamp = 0;
-            TinyGPSLocation location = {};
-            double hdop = 0;
-        };
-
         static const size_t DESIRED_SAMPLES = 20;
         static const int SCAN_INTERVAL = 50;
         EspGps::GPS* _gpsService = nullptr;
         EspGps::GSM* _gsmService = nullptr;
-        std::deque<SGPSSample> _gpsSampleQueue;
+        std::deque<SLocation> _gpsSampleQueue;
+        bool _gsmSampleValid = false;
         SLocation _gsmSample;
         #ifdef CALCULATE_LOCATION_ON_REQUEST
         std::mutex _mutex;
@@ -54,35 +34,10 @@ namespace ReadieFur::EspGps
 
         void SampleGPS()
         {
-            if (!_gpsService->TinyGps.location.isUpdated())
+            if (!_gpsService->IsUpdated())
                 return;
 
-            SGPSSample sample =
-            {
-                .location = _gpsService->TinyGps.location
-            };
-
-            if (_gpsService->TinyGps.date.isValid() && _gpsService->TinyGps.time.isValid())
-            {
-                std::tm timeInfo =
-                {
-                    tm_sec: _gpsService->TinyGps.time.second(),
-                    tm_min: _gpsService->TinyGps.time.minute(),
-                    tm_hour: _gpsService->TinyGps.time.hour(),
-                    tm_mday: _gpsService->TinyGps.date.day(),
-                    tm_mon: _gpsService->TinyGps.date.month() - 1,
-                    tm_year: _gpsService->TinyGps.date.year() - 1900
-                };
-
-                sample.timestamp = std::mktime(&timeInfo);
-                //age = timestamp + (timestamp.age - location.age)
-                int32_t timeOffset = _gpsService->TinyGps.time.age() - _gpsService->TinyGps.location.age();
-                time_t secondsToAdd = timeOffset / 1000;
-                sample.timestamp += secondsToAdd;
-            }
-
-            if (_gpsService->TinyGps.hdop.isValid())
-                sample.hdop = _gpsService->TinyGps.hdop.hdop();
+            SLocation sample = _gpsService->GetLocation();
 
             if (_gpsSampleQueue.size() == 5)
                 _gpsSampleQueue.pop_front();
@@ -107,7 +62,7 @@ namespace ReadieFur::EspGps
 
                 if (valid)
                 {
-                    gsmSample.type = ELocationType::GSM;
+                    _gsmSampleValid = true;
                     gsmSample.latitude = (double)lat;
                     gsmSample.longitude = (double)lng;
                     gsmSample.accuracy = (double)acc;
@@ -115,16 +70,20 @@ namespace ReadieFur::EspGps
                     timeInfo.tm_year -= 1900;
                     gsmSample.timestamp = std::mktime(&timeInfo);
                 }
+                else
+                {
+                    _gsmSampleValid = false;
+                }
             }, configIDLE_TASK_STACK_SIZE + 1024);
 
             _gsmSample = gsmSample;
         }
 
-        void CalculateLocation(SLocation& outLocation)
+        void CalculateLocation(SLocation& outLocation, ELocationSource& outSource)
         {
             if (!_gpsSampleQueue.empty())
             {
-                outLocation.type = ELocationType::GPS;
+                outSource = ELocationSource::LC_GPS;
 
                 size_t gsmSampleCount = _gpsSampleQueue.size();
                 outLocation.latitude = outLocation.longitude = outLocation.accuracy = outLocation.timestamp = 0; //Ensure these are set to 0 as we will be working on them directly.
@@ -132,13 +91,13 @@ namespace ReadieFur::EspGps
                 long long timeSamples = 0; //TODO: Change this as in the far future it will encounter the same overflow issue as before when I was using a regular long.
                 for (size_t i = 0; i < gsmSampleCount; i++)
                 {
-                    SGPSSample gpsSample = _gpsSampleQueue.at(i);
-                    outLocation.latitude += gpsSample.location.lat();
-                    outLocation.longitude += gpsSample.location.lng();
-                    if (gpsSample.hdop != 0)
+                    SLocation gpsSample = _gpsSampleQueue.at(i);
+                    outLocation.latitude += gpsSample.latitude;
+                    outLocation.longitude += gpsSample.longitude;
+                    if (gpsSample.accuracy != 0)
                     {
                         hdopSampleCount++;
-                        outLocation.accuracy += gpsSample.hdop;
+                        outLocation.accuracy += gpsSample.accuracy;
                     }
                     if (gpsSample.timestamp != 0)
                     {
@@ -160,13 +119,14 @@ namespace ReadieFur::EspGps
                     outLocation.timestamp = (long)(timeSamples / timeSampleCount);
                 }
             }
-            else if (_gsmSample.type != ELocationType::Invalid)
+            else if (_gsmSampleValid)
             {
+                outSource = ELocationSource::LC_GSM;
                 outLocation = _gsmSample;
             }
             else
             {
-                outLocation.type = ELocationType::Invalid;
+                outSource = ELocationSource::LC_Invalid;
             }
         }
 
@@ -194,10 +154,11 @@ namespace ReadieFur::EspGps
 
             while (!ServiceCancellationToken.IsCancellationRequested())
             {
+                TickType_t now = xTaskGetTickCount();
                 for (auto &&sample : _gpsSampleQueue)
                 {
                     //Only keep samples for 1 second.
-                    if (sample.location.age() > 1000)
+                    if (now - sample.age > pdMS_TO_TICKS(1000))
                         _gpsSampleQueue.pop_front();
                 }
                 #ifdef CALCULATE_LOCATION_ON_REQUEST
@@ -238,11 +199,11 @@ namespace ReadieFur::EspGps
             _gpsSampleQueue.resize(5);
         }
 
-        void GetLocation(SLocation& outLocation)
+        void GetLocation(SLocation& outLocation, ELocationSource& outSource)
         {
             #ifdef CALCULATE_LOCATION_ON_REQUEST
             _mutex.lock();
-            CalculateLocation(outLocation);
+            CalculateLocation(outLocation, outSource);
             _mutex.unlock();
             #else
             outLocation = _location;

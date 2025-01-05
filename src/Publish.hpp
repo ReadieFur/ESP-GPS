@@ -15,6 +15,7 @@
 #include <esp_sleep.h>
 #include "Storage.hpp"
 #include "Checkpoint.hpp"
+#include "SLocation.h"
 
 namespace ReadieFur::EspGps
 {
@@ -37,6 +38,26 @@ namespace ReadieFur::EspGps
             _stringBuffer.clear();
         }
 
+        String MsToFormattedString(uint32_t ms)
+        {
+            uint32_t seconds = ms / 1000;
+            uint32_t minutes = seconds / 60;
+            uint32_t hours = minutes / 60;
+            seconds %= 60;
+            minutes %= 60;
+            String result = "";
+            if (hours > 0)
+                result += String(hours) + "h ";
+            if (minutes > 0)
+                result += String(minutes) + "m ";
+            if (seconds > 0)
+                result += String(seconds) + "s";
+            result.trim();
+            if (result.isEmpty())
+                return "0s";
+            return result;
+        }
+
     protected:
         void RunServiceImpl() override
         {
@@ -53,9 +74,10 @@ namespace ReadieFur::EspGps
             {
                 ClearBuffers();
 
-                Location::SLocation location;
-                _locationService->GetLocation(location);
-                if (location.type == Location::ELocationType::Invalid)
+                SLocation location;
+                ELocationSource source;
+                _locationService->GetLocation(location, source);
+                if (source == ELocationSource::LC_Invalid)
                 {
                     vTaskDelay(pdMS_TO_TICKS(1000));
                     continue;
@@ -63,7 +85,7 @@ namespace ReadieFur::EspGps
 
                 _jsonBuffer["trigger"] = GetConfig(int, trigger);
 
-                _jsonBuffer["type"] = location.type;
+                _jsonBuffer["type"] = source;
                 _jsonBuffer["time"] = location.timestamp;
                 _jsonBuffer["lat"] = location.latitude;
                 _jsonBuffer["lng"] = location.longitude;
@@ -87,7 +109,6 @@ namespace ReadieFur::EspGps
                 }
 
                 serializeJson(_jsonBuffer, _stringBuffer);
-
                 if (!_mqttService->Publish(_stringBuffer.c_str(), configIDLE_TASK_STACK_SIZE + 2048, pdTICKS_TO_MS(1000)))
                 {
                     LOGE(nameof(Publish), "Failed to publish MQTT message.");
@@ -97,8 +118,15 @@ namespace ReadieFur::EspGps
                     LOGV(nameof(Publish), "Successfully published MQTT message.");
                 }
 
+                #ifdef BATTERY_ADC
+                //TODO: Signal to the battery module to manage power.
+                vTaskDelay(pdMS_TO_TICKS(GetConfig(int, BATTERY_CHRG_INTERVAL)));
+                #else
                 //TODO: Change these intervals to be dynamic.
-                vTaskDelay(pdMS_TO_TICKS(1000));
+                int interval = GetConfig(int, BATTERY_CHRG_INTERVAL);
+                LOGD(nameof(Publish), "Sending next update in %s.", MsToFormattedString(interval).c_str());
+                vTaskDelay(pdMS_TO_TICKS(interval));
+                #endif
             }
 
             _mqttService = nullptr;

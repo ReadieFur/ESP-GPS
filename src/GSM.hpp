@@ -57,7 +57,7 @@ namespace ReadieFur::EspGps
         #ifdef DEBUG
         void RefreshDebugStream()
         {
-            #if true
+            #if false
             _debugger->DumpStream = esp_log_level_get(nameof(GPS)) >= esp_log_level_t::ESP_LOG_VERBOSE && !_connectedEvent.IsSet() ? &DbgStream : nullptr;
             #elif false
             _debugger->DumpStream = esp_log_level_get(nameof(GPS)) >= esp_log_level_t::ESP_LOG_VERBOSE ? &DbgStream : nullptr;
@@ -146,14 +146,16 @@ namespace ReadieFur::EspGps
             #ifdef MODEM_RING
             pinMode(MODEM_RING, INPUT_PULLUP);
             #endif
+            #ifdef MODEM_RESET
             pinMode(MODEM_RESET, OUTPUT);
+            #endif
             pinMode(MODEM_TX, OUTPUT);
             pinMode(MODEM_RX, INPUT_PULLDOWN);
         }
 
         void PowerOn()
         {
-            Serial2.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
+            MODEM_UART.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
 
             #ifdef MODEM_POWERON
             digitalWrite(MODEM_POWERON, HIGH);
@@ -189,7 +191,7 @@ namespace ReadieFur::EspGps
                 vTaskDelay(pdMS_TO_TICKS(100));
             }
 
-            Serial2.end();
+            MODEM_UART.end();
 
             #ifdef MODEM_DTR
             digitalWrite(MODEM_DTR, HIGH);
@@ -269,11 +271,11 @@ namespace ReadieFur::EspGps
             PowerOn();
 
             #ifdef DEBUG
-            _debugger = new StreamDebugger(Serial2, &DbgStream);
+            _debugger = new StreamDebugger(MODEM_UART, &DbgStream);
             _modem = new TinyGsm(*_debugger);
             RefreshDebugStream();
             #else
-            _modem = new TinyGsm(Serial2);
+            _modem = new TinyGsm(MODEM_UART);
             #endif
 
             vTaskDelay(pdMS_TO_TICKS(2000));
@@ -442,6 +444,11 @@ namespace ReadieFur::EspGps
         TinyGsm* GetModem()
         {
             return _modem;
+        }
+
+        std::mutex* GetModemMutex()
+        {
+            return &_mutex;
         }
 
         // bool GetLocation(float* lat = nullptr, float* lng = nullptr, float* acc = nullptr,

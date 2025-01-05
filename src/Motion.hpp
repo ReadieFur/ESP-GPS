@@ -1,5 +1,6 @@
 #pragma once
 
+// #ifdef MPU_INT
 #include <Wire.h>
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
@@ -54,3 +55,4 @@ namespace ReadieFur::EspGps
         }
     };
 };
+// #endif

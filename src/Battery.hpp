@@ -1,5 +1,6 @@
 #pragma once
 
+// #ifdef BATTERY_ADC
 #include <Arduino.h>
 #include "Board.h"
 #include <esp_sleep.h>
@@ -141,3 +142,4 @@ namespace ReadieFur::EspGps
         }
     };
 };
+// #endif

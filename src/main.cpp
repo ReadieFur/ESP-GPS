@@ -7,9 +7,13 @@
 #include "SerialMonitor.hpp"
 #include "GPS.hpp"
 #include "GSM.hpp"
+#ifdef MPU_INT
 #include "Motion.hpp"
+#endif
 #include "Storage.hpp"
+#ifdef BATTERY_ADC
 #include "Battery.hpp"
+#endif
 #ifdef DEBUG
 #include "Diagnostic/DiagnosticsService.hpp"
 #endif
@@ -80,7 +84,7 @@ void setup()
     Storage::Init();
 
     #ifdef MPU_INT
-    // Motion::Configure();
+    Motion::Configure();
     #endif
 
     CheckWakeupReason();
@@ -93,21 +97,27 @@ void setup()
     // CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<ReadieFur::Diagnostic::DiagnosticsService>());
     #endif
 
+    #ifdef BATTERY_ADC
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<Battery>());
+    #endif
+
     #ifdef TEST_GPS
+    #ifdef GPS_INTEGRATED
+    esp_log_level_set(nameof(GSM), ESP_LOG_VERBOSE);
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GSM>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GSM>());
+    #endif
     esp_log_level_set(nameof(GPS), ESP_LOG_VERBOSE);
-    esp_log_level_set(nameof(Location), ESP_LOG_VERBOSE);
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GPS>());
-    // CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<Location>());
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GPS>());
+    // esp_log_level_set(nameof(Location), ESP_LOG_VERBOSE);
+    // CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<Location>());
     // CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<Location>());
     return;
     #endif
 
-    #ifdef BATTERY_ADC
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<Battery>());
-    #endif
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GPS>());
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GSM>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GPS>());
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<Location>());
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<MQTT>());
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<Publish>());
@@ -117,9 +127,14 @@ void setup()
     #ifdef BATTERY_ADC
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<Battery>());
     #endif
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GPS>());
 
+    #ifdef GPS_INTEGRATED
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GSM>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GPS>());
+    #else
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GPS>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GSM>());
+    #endif
     GSM* _gsmService = ReadieFur::Service::ServiceManager::GetService<GSM>();
     _gsmService->WaitForConnection(pdMS_TO_TICKS(20 * 1000));
 
