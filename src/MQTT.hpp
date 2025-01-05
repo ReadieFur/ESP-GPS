@@ -18,7 +18,7 @@ namespace ReadieFur::EspGps
     {
     private:
         GSM* _gsmService = nullptr;
-        #ifdef TINY_GSM_MQTT_CLI_COUNT
+        #if TINY_GSM_MQTT_CLI_COUNT > 0
         static std::vector<int> _clients;
         TinyGsm* _modem = nullptr;
         int _clientIndex = 0;
@@ -37,7 +37,7 @@ namespace ReadieFur::EspGps
             //TODO: Send to API.
         }
 
-        #ifdef TINY_GSM_MQTT_CLI_COUNT
+        #if TINY_GSM_MQTT_CLI_COUNT > 0
         static void CallbackWrapper(const char* topic, const uint8_t* payload, uint32_t len)
         {
             Callback(topic, payload, len);
@@ -51,7 +51,7 @@ namespace ReadieFur::EspGps
 
         bool ValidateConnection()
         {
-            #ifdef TINY_GSM_MQTT_CLI_COUNT
+            #if TINY_GSM_MQTT_CLI_COUNT > 0
             if (_modem->mqtt_connected(_clientIndex))
             //No need to check if GSM is connected as this callback will only be run if it is connected.
             #else
@@ -68,7 +68,7 @@ namespace ReadieFur::EspGps
             }
 
             //Connect to MQTT broker.
-            #ifdef TINY_GSM_MQTT_CLI_COUNT
+            #if TINY_GSM_MQTT_CLI_COUNT > 0
             if (!_modem->mqtt_connect(_clientIndex,
                 GetConfig(const char*, MQTT_BROKER),
                 GetConfig(int, MQTT_PORT),
@@ -84,7 +84,7 @@ namespace ReadieFur::EspGps
                 return false;
             }
 
-            #ifdef TINY_GSM_MQTT_CLI_COUNT
+            #if TINY_GSM_MQTT_CLI_COUNT > 0
             _modem->mqtt_subscribe(_clientIndex, _subscribeTopic.c_str());
             #else
             _mqtt.subscribe(_subscribeTopic.c_str());
@@ -97,7 +97,7 @@ namespace ReadieFur::EspGps
 
         void FullRelease()
         {
-            #ifdef TINY_GSM_MQTT_CLI_COUNT
+            #if TINY_GSM_MQTT_CLI_COUNT > 0
             _gsmService->QueueAction([this]()
             {
                 for (int i = 0; i < TINY_GSM_MQTT_CLI_COUNT; i++)
@@ -117,7 +117,7 @@ namespace ReadieFur::EspGps
             _gsmService = GetService<GSM>(); //Shouldn't be null here.
             _gsmService->WaitForConnection();
 
-            #ifdef TINY_GSM_MQTT_CLI_COUNT
+            #if TINY_GSM_MQTT_CLI_COUNT > 0
             _modem = _gsmService->GetModem();
 
             FullRelease(); //Clear any old connections as this code will fail of there are any, the downside to this is that it makes the boot much slower.
@@ -172,7 +172,7 @@ namespace ReadieFur::EspGps
                     if (!ValidateConnection())
                         return;
 
-                    #ifdef TINY_GSM_MQTT_CLI_COUNT
+                    #if TINY_GSM_MQTT_CLI_COUNT > 0
                     _modem->mqtt_handle();
                     #else
                     _mqtt.loop();
@@ -182,7 +182,7 @@ namespace ReadieFur::EspGps
             }
 
             FullRelease();
-            #ifdef TINY_GSM_MQTT_CLI_COUNT
+            #if TINY_GSM_MQTT_CLI_COUNT > 0
             _modem = nullptr;
             #else
             _gsmClient = nullptr;
@@ -217,7 +217,7 @@ namespace ReadieFur::EspGps
             bool publishResult = false;
             bool gsmResult = _gsmService->QueueAction([this, &publishResult, payload]()
             {
-                #ifdef TINY_GSM_MQTT_CLI_COUNT
+                #if TINY_GSM_MQTT_CLI_COUNT > 0
                 publishResult = _modem->mqtt_publish(_clientIndex, GetPublishTopic(), payload);
                 #else
                 publishResult = _mqtt.publish(GetPublishTopic(), payload);

@@ -115,6 +115,9 @@ namespace ReadieFur::EspGps
                     }
                 }
 
+                //Attempt to set the GPS mode to 7 (GPS + BDS + GLONASS), if this fails the leave it at the module default.
+                _modem->setGPSMode(7);
+
                 //Dynamically pick between using cold, warm and hot start.
                 double timeSinceBoot = US_TO_S(esp_timer_get_time());
                 /* If the module has been off for more than 10 minutes then do a cold start.
@@ -130,7 +133,10 @@ namespace ReadieFur::EspGps
             }
 
             _modem->setGPSBaud(115200);
-            // _modem->setGPSMode(7);
+            #ifdef DEBUG
+            // _modem->sendAT("+CGNSSPORTSWITCH=1,1"); //Send NEMA output to UART interface.
+            _modem->sendAT("+CGNSSTST=1"); //Enable NMEA output (defaults to USB interface).
+            #endif
 
             //Get update frequency.
             _modem->sendAT("+CGPSNMEARATE?");
