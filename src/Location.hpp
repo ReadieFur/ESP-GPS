@@ -11,6 +11,7 @@
 #include <ctime>
 #include <mutex>
 #include "SLocation.h"
+#include <time.h>
 
 #define CALCULATE_LOCATION_ON_REQUEST
 
@@ -127,7 +128,12 @@ namespace ReadieFur::EspGps
             else
             {
                 outSource = ELocationSource::LC_Invalid;
+                return;
             }
+
+            //Update ESP32 RTC with the obtained time.
+            timeval tv = { .tv_sec = outLocation.timestamp, .tv_usec = 0 };
+            settimeofday(&tv, nullptr);
         }
 
     protected:

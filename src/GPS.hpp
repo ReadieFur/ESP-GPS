@@ -1,5 +1,6 @@
 #pragma once
 
+#include <freertos/FreeRTOS.h>
 #include "Board.h"
 #include "Config.h"
 #include "Service/AService.hpp"
@@ -8,11 +9,15 @@
 #include "Logging.hpp"
 #include "Helpers.h"
 #include "SLocation.h"
+#include <freertos/task.h>
+#include <esp_timer.h>
 
 #if !defined(GPS_RX) || !defined(GPS_TX)
 #define GPS_INTEGRATED
 #include "GSM.hpp"
 #endif
+
+#define US_TO_S(x) (x / 1000000.0)
 
 namespace ReadieFur::EspGps
 {
@@ -23,9 +28,11 @@ namespace ReadieFur::EspGps
         bool _locationUpdated = false;
         SLocation _location;
         TickType_t _interval = pdMS_TO_TICKS(1000);
+        TaskHandle_t _readTaskHandle = nullptr;
         #ifdef GPS_INTEGRATED
         TinyGsm* _modem;
         std::mutex* _mutex;
+        // TaskHandle_t _secondaryTaskHandle = nullptr;
         #endif
 
         void SetupGPIO()
@@ -107,7 +114,19 @@ namespace ReadieFur::EspGps
                         abort();
                     }
                 }
-                //TODO: Dynamically pick between using cold, warm and hot start.
+
+                //Dynamically pick between using cold, warm and hot start.
+                double timeSinceBoot = US_TO_S(esp_timer_get_time());
+                /* If the module has been off for more than 10 minutes then do a cold start.
+                 * If the module has been off for less than 10 minutes but more than 30 seconds then do a warm start.
+                 * If the module has been off for less than 30 seconds then do a hot start.
+                 */
+                if (timeSinceBoot > 10 * 60)
+                    _modem->sendAT("+CGPSCOLD");
+                else if (timeSinceBoot > 30)
+                    _modem->sendAT("+CGPSWARM");
+                else
+                    _modem->sendAT("+CGPSHOT");
             }
 
             _modem->setGPSBaud(115200);
@@ -187,59 +206,111 @@ namespace ReadieFur::EspGps
             _location.timestamp = std::mktime(&timeInfo);
         }
 
-        void ReadGPS()
+        static void ReadGPSTask(void* param)
         {
-            bool logVerbose = esp_log_level_get(nameof(GPS)) >= esp_log_level_t::ESP_LOG_VERBOSE;
-            #ifndef GPS_INTEGRATED
-            while (Serial1.available())
+            GPS* self = reinterpret_cast<GPS*>(param);
+
+            while (!self->ServiceCancellationToken.IsCancellationRequested())
             {
-                char c = Serial1.read();
+                bool logVerbose = esp_log_level_get(nameof(GPS)) >= esp_log_level_t::ESP_LOG_VERBOSE;
+                #ifndef GPS_INTEGRATED
+                while (GPS_UART.available())
+                {
+                    char c = GPS_UART.read();
+                    #if true
+                    if (logVerbose)
+                        WRITE(c);
+                    #endif
+                    self->ParseChar(c);
+                    if (logVerbose && self->_locationUpdated)
+                        LOGI(nameof(GPS), "Location: %f, %f", self->_location.latitude, self->_location.longitude);
+                }
+                #else
                 #if true
-                if (logVerbose)
-                    WRITE(c);
+                float lat2 = 0, lon2 = 0, speed2 = 0, alt2 = 0, accuracy2 = 0;
+                int vsat2 = 0, usat2 = 0, year2 = 0, month2 = 0, day2 = 0, hour2 = 0, min2 = 0, sec2 = 0;
+                uint8_t fixMode = 0;
+
+                self->_mutex->lock();
+                bool gotGps = self->_modem->getGPS(&fixMode, &lat2, &lon2, &speed2, &alt2, &vsat2, &usat2, &accuracy2, &year2, &month2, &day2, &hour2, &min2, &sec2);
+                self->_mutex->unlock();
+
+                if (gotGps)
+                {
+                    self->_locationUpdated = true;
+                    self->_location.age = millis();
+                    self->_location.latitude = lat2;
+                    self->_location.longitude = lon2;
+                    self->_location.accuracy = accuracy2;
+
+                    tm timeInfo = {};
+                    timeInfo.tm_sec = sec2;
+                    timeInfo.tm_min = min2;
+                    timeInfo.tm_hour = hour2;
+                    timeInfo.tm_mday = day2;
+                    timeInfo.tm_mon = month2 - 1;
+                    timeInfo.tm_year = year2 - 1900;
+                    self->_location.timestamp = std::mktime(&timeInfo);
+
+                    if (logVerbose)
+                        LOGI(nameof(GPS), "Location: %f, %f", self->_location.latitude, self->_location.longitude);
+                }
+                #else
+                self->_mutex->lock();
+                String gpsData = self->_modem->getGPSraw();
+                self->_mutex->unlock();
+                for (char c : gpsData)
+                {
+                    self->ParseChar(c);
+                    if (logVerbose && self->_locationUpdated)
+                        LOGI(nameof(GPS), "Location: %f, %f", self->_location.latitude, self->_location.longitude);
+                }
                 #endif
-                ParseChar(c);
-                if (logVerbose && _locationUpdated)
-                    LOGI(nameof(GPS), "Location: %f, %f", _location.latitude, _location.longitude);
-            }
-            #else
-            _mutex->lock();
-            #if true
-            float lat2 = 0, lon2 = 0, speed2 = 0, alt2 = 0, accuracy2 = 0;
-            int vsat2 = 0, usat2 = 0, year2 = 0, month2 = 0, day2 = 0, hour2 = 0, min2 = 0, sec2 = 0;
-            uint8_t fixMode = 0;
-            if (_modem->getGPS(&fixMode, &lat2, &lon2, &speed2, &alt2, &vsat2, &usat2, &accuracy2, &year2, &month2, &day2, &hour2, &min2, &sec2))
-            {
-                _locationUpdated = true;
-                _location.age = millis();
-                _location.latitude = lat2;
-                _location.longitude = lon2;
-                _location.accuracy = accuracy2;
+                #endif
 
-                tm timeInfo = {};
-                timeInfo.tm_sec = sec2;
-                timeInfo.tm_min = min2;
-                timeInfo.tm_hour = hour2;
-                timeInfo.tm_mday = day2;
-                timeInfo.tm_mon = month2 - 1;
-                timeInfo.tm_year = year2 - 1900;
-                _location.timestamp = std::mktime(&timeInfo);
+                vTaskDelay(self->_interval);
+            }
 
-                if (logVerbose)
-                    LOGI(nameof(GPS), "Location: %f, %f", _location.latitude, _location.longitude);
-            }
-            #else
-            String gpsData = _modem->getGPSraw();
-            for (char c : gpsData)
-            {
-                ParseChar(c);
-                if (logVerbose && _locationUpdated)
-                    LOGI(nameof(GPS), "Location: %f, %f", _location.latitude, _location.longitude);
-            }
-            #endif
-            _mutex->unlock();
-            #endif
+            vTaskDelete(NULL);
         }
+
+        // #ifdef GPS_INTEGRATED
+        // static void SecondaryTask(void* param)
+        // {
+        //     GPS* self = reinterpret_cast<GPS*>(param);
+
+        //     while (!self->ServiceCancellationToken.IsCancellationRequested())
+        //     {
+        //         int year2 = 0, month2 = 0, day2 = 0, hour2 = 0, min2 = 0, sec2 = 0;
+
+        //         self->_mutex->lock();
+        //         bool gotTime = self->_modem->getGPSTime(&year2, &month2, &day2, &hour2, &min2, &sec2);
+        //         self->_mutex->unlock();
+
+        //         if (!gotTime)
+        //         {
+        //             vTaskDelay(pdMS_TO_TICKS(1000));
+        //             continue;
+        //         }
+
+        //         tm timeInfo = {};
+        //         timeInfo.tm_sec = sec2;
+        //         timeInfo.tm_min = min2;
+        //         timeInfo.tm_hour = hour2;
+        //         timeInfo.tm_mday = day2;
+        //         timeInfo.tm_mon = month2 - 1;
+        //         timeInfo.tm_year = year2 - 1900;
+        //         time_t timestamp = std::mktime(&timeInfo);
+
+        //         //Store the GPS time in NVS for later use.
+        //         SetConfig(GPS_TIME, (ulong)timestamp);
+        //         Storage::Save();
+        //         vTaskDelay(pdMS_TO_TICKS(5000));
+        //     }
+
+        //     vTaskDelete(NULL);
+        // }
+        // #endif
 
     protected:
         void RunServiceImpl() override
@@ -249,15 +320,27 @@ namespace ReadieFur::EspGps
             _mutex = gsmService->GetModemMutex();
             PowerOn();
 
-            while (!ServiceCancellationToken.IsCancellationRequested())
+            if (xTaskCreate(ReadGPSTask, "gps_read", ServiceEntrypointStackDepth, this, ServiceEntrypointPriority, &_readTaskHandle) != pdPASS)
             {
-                ReadGPS();
-                vTaskDelay(_interval);
+                LOGE(nameof(GPS), "Failed to create GPS read task.");
+                abort();
             }
+            // #ifdef GPS_INTEGRATED
+            // if (xTaskCreate(SecondaryTask, "gps_secondary", ServiceEntrypointStackDepth, this, ServiceEntrypointPriority, &_secondaryTaskHandle) != pdPASS)
+            // {
+            //     LOGE(nameof(GPS), "Failed to create GPS secondary task.");
+            //     abort();
+            // }
+            // #endif
+            ServiceCancellationToken.WaitForCancellation();
 
             PowerOff();
             _modem = nullptr;
             _mutex = nullptr;
+            _readTaskHandle = nullptr;
+            #ifdef GPS_INTEGRATED
+            // _secondaryTaskHandle = nullptr;
+            #endif
         }
 
     public:
