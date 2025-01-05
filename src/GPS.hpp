@@ -29,9 +29,10 @@ namespace ReadieFur::EspGps
         SLocation _location;
         TickType_t _interval = pdMS_TO_TICKS(1000);
         TaskHandle_t _readTaskHandle = nullptr;
+        std::mutex _locationMutex;
         #ifdef GPS_INTEGRATED
         TinyGsm* _modem;
-        std::mutex* _mutex;
+        std::mutex* _modemMutex;
         // TaskHandle_t _secondaryTaskHandle = nullptr;
         #endif
 
@@ -61,7 +62,7 @@ namespace ReadieFur::EspGps
             _interval = pdMS_TO_TICKS(1000 / 5);
             #endif
             #else
-            _mutex->lock();
+            _modemMutex->lock();
             //https://github.com/Xinyuan-LilyGO/LilyGO-T-A76XX/blob/main/examples/GPS_Acceleration/GPS_Acceleration.ino
             //Validate the module for GPS support.
             String modemName = "UNKOWN";
@@ -169,7 +170,7 @@ namespace ReadieFur::EspGps
                 }
             }
 
-            _mutex->unlock();
+            _modemMutex->unlock();
             #endif
         }
 
@@ -182,9 +183,9 @@ namespace ReadieFur::EspGps
             gpio_hold_en((gpio_num_t)GPS_WAKEUP);
             #endif
             #else
-            _mutex->lock();
+            _modemMutex->lock();
             _modem->disableGPS();
-            _mutex->unlock();
+            _modemMutex->unlock();
             #endif
         }
 
@@ -193,14 +194,19 @@ namespace ReadieFur::EspGps
             if (!_tinyGps.encode(c) || !_tinyGps.location.isUpdated())
                 return;
 
+            _locationMutex.lock();
+
             _locationUpdated = true;
-            _location.age = millis();
+            _location.age = xTaskGetTickCount();
             _location.latitude = _tinyGps.location.lat();
             _location.longitude = _tinyGps.location.lng();
             _location.accuracy = _tinyGps.hdop.hdop();
 
             if (!_tinyGps.date.isValid() || !_tinyGps.time.isValid())
+            {
+                _locationMutex.unlock();
                 return;
+            }
 
             tm timeInfo = {};
             timeInfo.tm_sec = _tinyGps.time.second();
@@ -210,6 +216,8 @@ namespace ReadieFur::EspGps
             timeInfo.tm_mon = _tinyGps.date.month() - 1;
             timeInfo.tm_year = _tinyGps.date.year() - 1900;
             _location.timestamp = std::mktime(&timeInfo);
+
+            _locationMutex.unlock();
         }
 
         static void ReadGPSTask(void* param)
@@ -237,14 +245,16 @@ namespace ReadieFur::EspGps
                 int vsat2 = 0, usat2 = 0, year2 = 0, month2 = 0, day2 = 0, hour2 = 0, min2 = 0, sec2 = 0;
                 uint8_t fixMode = 0;
 
-                self->_mutex->lock();
+                self->_modemMutex->lock();
                 bool gotGps = self->_modem->getGPS(&fixMode, &lat2, &lon2, &speed2, &alt2, &vsat2, &usat2, &accuracy2, &year2, &month2, &day2, &hour2, &min2, &sec2);
-                self->_mutex->unlock();
+                self->_modemMutex->unlock();
 
                 if (gotGps)
                 {
+                    self->_locationMutex.lock();
+
                     self->_locationUpdated = true;
-                    self->_location.age = millis();
+                    self->_location.age = xTaskGetTickCount();
                     self->_location.latitude = lat2;
                     self->_location.longitude = lon2;
                     self->_location.accuracy = accuracy2;
@@ -258,13 +268,15 @@ namespace ReadieFur::EspGps
                     timeInfo.tm_year = year2 - 1900;
                     self->_location.timestamp = std::mktime(&timeInfo);
 
+                    self->_locationMutex.unlock();
+
                     if (logVerbose)
                         LOGI(nameof(GPS), "Location: %f, %f", self->_location.latitude, self->_location.longitude);
                 }
                 #else
-                self->_mutex->lock();
+                self->_modemMutex->lock();
                 String gpsData = self->_modem->getGPSraw();
-                self->_mutex->unlock();
+                self->_modemMutex->unlock();
                 for (char c : gpsData)
                 {
                     self->ParseChar(c);
@@ -289,9 +301,9 @@ namespace ReadieFur::EspGps
         //     {
         //         int year2 = 0, month2 = 0, day2 = 0, hour2 = 0, min2 = 0, sec2 = 0;
 
-        //         self->_mutex->lock();
+        //         self->_modemMutex->lock();
         //         bool gotTime = self->_modem->getGPSTime(&year2, &month2, &day2, &hour2, &min2, &sec2);
-        //         self->_mutex->unlock();
+        //         self->_modemMutex->unlock();
 
         //         if (!gotTime)
         //         {
@@ -323,7 +335,7 @@ namespace ReadieFur::EspGps
         {
             GSM* gsmService = GetService<GSM>();
             _modem = gsmService->GetModem();
-            _mutex = gsmService->GetModemMutex();
+            _modemMutex = gsmService->GetModemMutex();
             PowerOn();
 
             if (xTaskCreate(ReadGPSTask, "gps_read", ServiceEntrypointStackDepth, this, ServiceEntrypointPriority, &_readTaskHandle) != pdPASS)
@@ -342,7 +354,7 @@ namespace ReadieFur::EspGps
 
             PowerOff();
             _modem = nullptr;
-            _mutex = nullptr;
+            _modemMutex = nullptr;
             _readTaskHandle = nullptr;
             #ifdef GPS_INTEGRATED
             // _secondaryTaskHandle = nullptr;
@@ -369,10 +381,17 @@ namespace ReadieFur::EspGps
             return _locationUpdated;
         }
 
-        SLocation GetLocation()
+        void GetLocation(SLocation& outLocation)
         {
+            _locationMutex.lock();
+            outLocation = _location;
             _locationUpdated = false;
-            return _location;
+            _locationMutex.unlock();
+        }
+
+        TickType_t GetInterval()
+        {
+            return _interval;
         }
     };
 };
