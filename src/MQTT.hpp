@@ -120,7 +120,7 @@ namespace ReadieFur::EspGps
             #ifdef TINY_GSM_MQTT_CLI_COUNT
             _modem = _gsmService->GetModem();
 
-            FullRelease(); //Clear any old connections as this code will fail of there are any.
+            FullRelease(); //Clear any old connections as this code will fail of there are any, the downside to this is that it makes the boot much slower.
 
             _gsmService->QueueAction([this]()
             {
