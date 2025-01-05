@@ -100,10 +100,23 @@ namespace ReadieFur::EspGps
             #if TINY_GSM_MQTT_CLI_COUNT > 0
             _gsmService->QueueAction([this]()
             {
+                #if true
+                for (int i = 0; i < TINY_GSM_MQTT_CLI_COUNT; i++)
+                    _modem->mqtt_disconnect(i); //This call handles all three required commands in the required order: DISCONNECT, RELEASE, STOP.
+                #else
+                //Fast release:
                 for (int i = 0; i < TINY_GSM_MQTT_CLI_COUNT; i++)
                 {
-                    _modem->mqtt_disconnect(i); //This call handles all three required commands in the required order: DISCONNECT, RELEASE, STOP.
+                    _modem->sendAT("+CMQTTDISC=", i, ",0");
+                    _modem->waitResponse(3000);
+                    _modem->waitResponse(10000UL, "+CMQTTDISC: ");
+                    _modem->sendAT("+CMQTTREL=", i);
+                    _modem->waitResponse(3000);
                 }
+                _modem->sendAT("+CMQTTSTOP");
+                _modem->waitResponse("+CMQTTSTOP: ");
+                _modem->waitResponse(3000);
+                #endif
             }, ServiceEntrypointStackDepth);
             #else
             _mqtt.disconnect();
