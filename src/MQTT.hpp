@@ -11,6 +11,7 @@
 
 namespace ReadieFur::EspGps
 {
+    //TODO: Use the MQTT service provided by the GSM module if supported.
     class MQTT : public Service::AService
     {
     private:
