@@ -161,10 +161,7 @@ namespace ReadieFur::EspGps
                 outLocation.longitude /= gsmSampleCount;
 
                 if (hdopSampleCount != 0)
-                {
                     outLocation.accuracy /= hdopSampleCount;
-                    outLocation.accuracy *= 5.0; //Common multiplier for HDOP to meters.
-                }
 
                 if (timeSampleCount != 0)
                     outLocation.timestamp = (long)(timeSamples / timeSampleCount);

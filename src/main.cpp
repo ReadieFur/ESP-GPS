@@ -77,8 +77,8 @@ void CheckWakeupReason()
 void setup()
 {
     #ifdef DEBUG
-    // esp_log_level_set("*", ESP_LOG_VERBOSE);
-    esp_log_level_set("*", ESP_LOG_DEBUG);
+    esp_log_level_set("*", ESP_LOG_VERBOSE);
+    // esp_log_level_set("*", ESP_LOG_DEBUG);
     #else
     esp_log_level_set("*", ESP_LOG_INFO);
     #endif

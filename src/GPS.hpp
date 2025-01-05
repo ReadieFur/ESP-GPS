@@ -200,7 +200,7 @@ namespace ReadieFur::EspGps
             _location.age = xTaskGetTickCount();
             _location.latitude = _tinyGps.location.lat();
             _location.longitude = _tinyGps.location.lng();
-            _location.accuracy = _tinyGps.hdop.hdop();
+            _location.accuracy = _tinyGps.hdop.hdop() * 5.0; //Common multiplier for HDOP to meters.
 
             if (!_tinyGps.date.isValid() || !_tinyGps.time.isValid())
             {
@@ -257,7 +257,7 @@ namespace ReadieFur::EspGps
                     self->_location.age = xTaskGetTickCount();
                     self->_location.latitude = lat2;
                     self->_location.longitude = lon2;
-                    self->_location.accuracy = accuracy2;
+                    self->_location.accuracy = accuracy2 * 5.0;
 
                     tm timeInfo = {};
                     timeInfo.tm_sec = sec2;
@@ -271,7 +271,7 @@ namespace ReadieFur::EspGps
                     self->_locationMutex.unlock();
 
                     if (logVerbose)
-                        LOGI(nameof(GPS), "Location: %f, %f", self->_location.latitude, self->_location.longitude);
+                        LOGI(nameof(GPS), "Fix: %i Lat: %.6f, Lng: %.6f, Acc: %.6f", fixMode, self->_location.latitude, self->_location.longitude, self->_location.accuracy);
                 }
                 #else
                 self->_modemMutex->lock();
@@ -281,7 +281,7 @@ namespace ReadieFur::EspGps
                 {
                     self->ParseChar(c);
                     if (logVerbose && self->_locationUpdated)
-                        LOGI(nameof(GPS), "Location: %f, %f", self->_location.latitude, self->_location.longitude);
+                        LOGI(nameof(GPS), "Lat: %.6f, Lng: %.6f, Acc: %.6f", self->_location.latitude, self->_location.longitude, self->_location.accuracy);
                 }
                 #endif
                 #endif
