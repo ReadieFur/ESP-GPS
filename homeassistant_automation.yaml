@@ -15,3 +15,15 @@ action:
         last_seen: "{{ trigger.payload_json.time | timestamp_local }}"
         battery: "{{ trigger.payload_json.bat / 1000 }}v"
         battery_state: "{{ ['Charging', 'Discharging', 'Low', 'Critical'][trigger.payload_json.bat_state] }}"
+        battery: |-
+          {% if 'bat' in trigger.payload_json %}
+            {{ trigger.payload_json.bat / 1000 }}v
+          {% else %}
+            Unknown
+          {% endif %}
+      battery_state: |-
+          {% if 'bat_state' in trigger.payload_json %}
+            {{ ['Charging', 'Discharging', 'Low', 'Critical'][trigger.payload_json.bat_state] }}
+          {% else %}
+            Unknown
+          {% endif %}
