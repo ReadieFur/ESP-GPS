@@ -200,7 +200,7 @@ namespace ReadieFur::EspGps
             _location.age = xTaskGetTickCount();
             _location.latitude = _tinyGps.location.lat();
             _location.longitude = _tinyGps.location.lng();
-            _location.accuracy = _tinyGps.hdop.hdop() * 5.0; //Common multiplier for HDOP to meters.
+            _location.accuracy = _tinyGps.hdop.hdop() * 20.0; //5 is a common multiplier for HDOP to meters, however in my testing 20 is more reasonable.
 
             if (!_tinyGps.date.isValid() || !_tinyGps.time.isValid())
             {
@@ -257,7 +257,7 @@ namespace ReadieFur::EspGps
                     self->_location.age = xTaskGetTickCount();
                     self->_location.latitude = lat2;
                     self->_location.longitude = lon2;
-                    self->_location.accuracy = accuracy2 * 5.0;
+                    self->_location.accuracy = accuracy2 * 20.0;
 
                     tm timeInfo = {};
                     timeInfo.tm_sec = sec2;
