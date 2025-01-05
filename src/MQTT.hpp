@@ -215,7 +215,7 @@ namespace ReadieFur::EspGps
                 return false;
 
             bool publishResult = false;
-            bool gsmResult = _gsmService->QueueAction([this, &publishResult, payload, timeout]()
+            bool gsmResult = _gsmService->QueueAction([this, &publishResult, payload]()
             {
                 #ifdef TINY_GSM_MQTT_CLI_COUNT
                 publishResult = _modem->mqtt_publish(_clientIndex, GetPublishTopic(), payload);
