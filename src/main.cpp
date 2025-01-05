@@ -3,6 +3,7 @@
 #include "Logging.hpp"
 #include "Board.h"
 #include "Config.h"
+
 #include "Service/ServiceManager.hpp"
 #include "SerialMonitor.hpp"
 #include "GPS.hpp"
@@ -25,6 +26,7 @@
 
 #ifdef DEBUG
 // #define TEST_GPS
+// #define TEST_MQTT
 #endif
 
 #define CHECK_SERVICE_RESULT(func) do {                                     \
@@ -101,7 +103,7 @@ void setup()
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<Battery>());
     #endif
 
-    #ifdef TEST_GPS
+    #if defined(TEST_GPS)
     #ifdef GPS_INTEGRATED
     esp_log_level_set(nameof(GSM), ESP_LOG_VERBOSE);
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GSM>());
@@ -113,6 +115,14 @@ void setup()
     // esp_log_level_set(nameof(Location), ESP_LOG_VERBOSE);
     // CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<Location>());
     // CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<Location>());
+    return;
+    #elif defined(TEST_MQTT)
+    esp_log_level_set(nameof(GSM), ESP_LOG_VERBOSE);
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GSM>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GSM>());
+    esp_log_level_set(nameof(MQTT), ESP_LOG_VERBOSE);
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<MQTT>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<MQTT>());
     return;
     #endif
 

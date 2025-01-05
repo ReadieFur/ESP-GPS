@@ -278,6 +278,11 @@ namespace ReadieFur::EspGps
             _modem = new TinyGsm(MODEM_UART);
             #endif
 
+            #if defined(DEBUG) && false
+            //Force soft-reset of the module.
+            _modem->restart();
+            #endif
+
             vTaskDelay(pdMS_TO_TICKS(2000));
             if (!_modem->init())
             {
@@ -450,6 +455,14 @@ namespace ReadieFur::EspGps
         {
             return &_mutex;
         }
+
+        // bool Restart()
+        // {
+        //     _mutex.lock();
+        //     bool retVal = _modem->restart();
+        //     _mutex.unlock();
+        //     return retVal;
+        // }
 
         // bool GetLocation(float* lat = nullptr, float* lng = nullptr, float* acc = nullptr,
         //     int* year = nullptr, int* month = nullptr, int* day = nullptr,
