@@ -61,6 +61,7 @@ void CheckWakeupReason()
     //The following take priority over the previous trigger.
     case ESP_SLEEP_WAKEUP_EXT0: //Interrupt.
     case ESP_SLEEP_WAKEUP_TOUCHPAD: //TODO: Voltage change.
+    case ESP_SLEEP_WAKEUP_GPIO: //Pin.
         Storage::Cache["trigger"] = wakeupCause;
         if (!Storage::Save())
         {
@@ -83,10 +84,18 @@ void setup()
     esp_log_level_set("*", ESP_LOG_INFO);
     #endif
 
+    #if defined(DEBUG) && false
+    vTaskDelay(pdMS_TO_TICKS(2000));
+    #endif
+
     Storage::Init();
 
     #ifdef MPU_INT
-    Motion::Configure();
+    if (!Motion::Configure())
+    {
+        LOGE(pcTaskGetName(NULL), "Failed to configure motion sensor.");
+        abort();
+    }
     #endif
 
     CheckWakeupReason();

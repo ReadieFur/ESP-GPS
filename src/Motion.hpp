@@ -16,6 +16,7 @@ namespace ReadieFur::EspGps
     public:
         static bool Configure()
         {
+            esp_err_t err;
             TwoWire i2c(0);
             Adafruit_MPU6050 mpu;
 
@@ -46,7 +47,26 @@ namespace ReadieFur::EspGps
             mpu.setInterruptPinPolarity(false);
             mpu.setMotionInterrupt(true);
 
-            esp_sleep_enable_ext0_wakeup((gpio_num_t)MPU_INT, 1);
+            //Light sleep wakeup.
+            #if SOC_PM_SUPPORT_EXT_WAKEUP
+            err = esp_sleep_enable_ext0_wakeup((gpio_num_t)MPU_INT, 1);
+            #else
+            err = gpio_wakeup_enable((gpio_num_t)MPU_INT, GPIO_INTR_HIGH_LEVEL);
+            #endif
+            if (err != ESP_OK)
+            {
+                LOGE(nameof(Motion), "Failed to enable wakeup on MPU6050 interrupt.");
+                return false;
+            }
+
+            //Deep sleep wakeup.
+            //TODO: Set these globally so multiple "modules" can configure their own wakeup sources without unconfigring others.
+            err = esp_deep_sleep_enable_gpio_wakeup((1ULL << MPU_INT), ESP_GPIO_WAKEUP_GPIO_HIGH);
+            if (err != ESP_OK)
+            {
+                LOGE(nameof(Motion), "Failed to enable GPIO wakeup on MPU6050 interrupt.");
+                return false;
+            }
 
             LOGI(nameof(Motion), "Successfully configured MPU6050.");
 
