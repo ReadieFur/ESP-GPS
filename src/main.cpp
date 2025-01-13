@@ -23,18 +23,26 @@
 #include "Location.hpp"
 #include "Publish.hpp"
 #include "Checkpoint.hpp"
+#include "Network/WiFi/EspNow.hpp"
 
 #ifdef DEBUG
 // #define TEST_GPS
 // #define TEST_MQTT
 #endif
 
-#define CHECK_SERVICE_RESULT(func) do {                                     \
-        ReadieFur::Service::EServiceResult result = func;                   \
-        if (result == ReadieFur::Service::Ok) break;                        \
-        LOGE(pcTaskGetName(NULL), "Failed with result: %i", result);        \
-        abort();                                                            \
-    } while (false)
+#define CHECK_SERVICE_RESULT(func) do {                                                 \
+        ReadieFur::Service::EServiceResult result = func;                               \
+        if (result == ReadieFur::Service::Ok) break;                                    \
+        LOGE(pcTaskGetName(NULL), "[%d] Failed with result: %i", __LINE__, result);     \
+        abort();                                                                        \
+    } while (0)
+
+#define CHECK_ESP_RESULT(func) do {                                                     \
+        esp_err_t result = func;                                                        \
+        if (result == ESP_OK) break;                                                    \
+        LOGE(pcTaskGetName(NULL), "[%d] Failed with result: %s", __LINE__, esp_err_to_name(result));   \
+        abort();                                                                        \
+    } while (0)
 
 using namespace ReadieFur::EspGps;
 
@@ -163,6 +171,8 @@ void setup()
     _gsmService->WaitForConnection(pdMS_TO_TICKS(10 * 1000));
 
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<Publish>());
+
+    CHECK_ESP_RESULT(ReadieFur::Network::WiFi::EspNow::Init()); //TODO: Move to own service file, just here for init testing.
 }
 
 void loop()

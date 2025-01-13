@@ -4,7 +4,7 @@
 
 namespace ReadieFur::EspGps
 {
-    class Checkpoint
+    class Checkpoint //I forget what this is or why I have it.
     {
     public:
         enum EEventTrigger
