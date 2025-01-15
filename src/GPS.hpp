@@ -35,6 +35,9 @@ namespace ReadieFur::EspGps
         std::mutex* _modemMutex;
         // TaskHandle_t _secondaryTaskHandle = nullptr;
         #endif
+        #ifdef BATTERY_ADC
+        Battery* _batteryService;
+        #endif
 
         void SetupGPIO()
         {
@@ -336,7 +339,34 @@ namespace ReadieFur::EspGps
             GSM* gsmService = GetService<GSM>();
             _modem = gsmService->GetModem();
             _modemMutex = gsmService->GetModemMutex();
+
             PowerOn();
+
+            #ifdef BATTERY_ADC
+            _batteryService = GetService<Battery>();
+            _batteryService->OnBeforeSleep.Add([this](const Battery::ESleepType& sleepType)
+            {
+                switch (sleepType)
+                {
+                case Battery::ESleepType::Deep:
+                    PowerOff();
+                    break;
+                default:
+                    break;
+                }
+            });
+            _batteryService->OnAfterSleep.Add([this](const Battery::ESleepType& sleepType)
+            {
+                switch (sleepType)
+                {
+                case Battery::ESleepType::Deep:
+                    PowerOn();
+                    break;
+                default:
+                    break;
+                }
+            });
+            #endif
 
             if (xTaskCreate(ReadGPSTask, "gps_read", ServiceEntrypointStackDepth, this, ServiceEntrypointPriority, &_readTaskHandle) != pdPASS)
             {

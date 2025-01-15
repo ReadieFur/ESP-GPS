@@ -23,6 +23,10 @@
 #include <freertos/task.h>
 #include <utility>
 #include <freertos/event_groups.h>
+#ifdef BATTERY_ADC
+#include "Battery.hpp"
+#endif
+#include <esp_system.h>
 
 namespace ReadieFur::EspGps
 {
@@ -53,6 +57,9 @@ namespace ReadieFur::EspGps
         Event::ManualResetEvent _connectedEvent;
         TaskHandle_t _actionQueueTask;
         std::queue<SAction> _actionQueue;
+        #ifdef BATTERY_ADC
+        Battery* _batteryService;
+        #endif
 
         #ifdef DEBUG
         void RefreshDebugStream()
@@ -181,13 +188,19 @@ namespace ReadieFur::EspGps
             vTaskDelay(pdMS_TO_TICKS(300));
             digitalWrite(MODEM_PWRKEY, LOW);
             #endif
+
+            vTaskDelay(pdMS_TO_TICKS(2000));
         }
 
         void PowerOff()
         {
+            _connectedEvent.Clear();
+
             if (_modem != nullptr)
             {
-                _modem->poweroff();
+                // _modem->poweroff(); //This causes the device to power off but then reboot, so I will use the CFUN command instead to put the device into a low power state.
+                _modem->setPhoneFunctionality(7, false);
+                _modem->sleepEnable(true);
                 vTaskDelay(pdMS_TO_TICKS(100));
             }
 
@@ -205,6 +218,44 @@ namespace ReadieFur::EspGps
             digitalWrite(MODEM_RESET, !MODEM_RESET_LEVEL);
             gpio_hold_en((gpio_num_t)MODEM_RESET);
             #endif
+        }
+
+        void ModemInit()
+        {
+            switch (esp_reset_reason())
+            {
+            case ESP_RST_UNKNOWN: //If we reboot from an unknown state then we should restart the modem as it could be in a broken state.
+            case ESP_RST_DEEPSLEEP: //Force soft-reset of the module if this is the first boot/wakeup from deep sleep (requires reset when exiting low power mode).
+            case ESP_RST_POWERON: //In testing I can also reset manually from a state where the module is asleep so we will also reset in those cases.
+                _modem->restart();
+                vTaskDelay(pdMS_TO_TICKS(5000)); //Reboot takes about x seconds.
+                break;
+            default:
+                #if defined(DEBUG) && false
+                _modem->restart();
+                vTaskDelay(pdMS_TO_TICKS(5000));
+                #endif
+                break;
+            }
+
+            if (!_modem->init())
+            {
+                LOGE(nameof(GSM), "Failed to start modem.");
+                abort();
+                return; //Does not return;
+            }
+
+            LOGD(nameof(GSM), "Modem info: %s", _modem->getModemInfo().c_str());
+
+            //Unlock your SIM card with a PIN if needed.
+            const char* pin = GetConfig(const char*, MODEM_PIN);
+            if (pin && _modem->getSimStatus() != 3 && !_modem->simUnlock(pin))
+            {
+                LOGE(nameof(GSM), "Failed to unlock SIM.");
+                abort();
+                return;
+            }
+
         }
 
         static void ProcessActionQueue(void* param)
@@ -278,29 +329,39 @@ namespace ReadieFur::EspGps
             _modem = new TinyGsm(MODEM_UART);
             #endif
 
-            #if defined(DEBUG) && false
-            //Force soft-reset of the module.
-            _modem->restart();
+            ModemInit();
+
+            #ifdef BATTERY_ADC
+            _batteryService = GetService<Battery>();
+            _batteryService->OnBeforeSleep.Add([this](const Battery::ESleepType& sleepType)
+            {
+                switch (sleepType)
+                {
+                case Battery::ESleepType::Deep:
+                    PowerOff();
+                    break;
+                case Battery::ESleepType::Light:
+                    _connectedEvent.Clear();
+                    _modem->sleepEnable(true);
+                default:
+                    break;
+                }
+            });
+            _batteryService->OnAfterSleep.Add([this](const Battery::ESleepType& sleepType)
+            {
+                switch (sleepType)
+                {
+                case Battery::ESleepType::Deep:
+                    PowerOn();
+                    ModemInit();
+                    break;
+                case Battery::ESleepType::Light:
+                    _modem->sleepEnable(false);
+                default:
+                    break;
+                }
+            });
             #endif
-
-            vTaskDelay(pdMS_TO_TICKS(2000));
-            if (!_modem->init())
-            {
-                LOGE(nameof(GSM), "Failed to start modem.");
-                abort();
-                return; //Does not return;
-            }
-
-            LOGD(nameof(GSM), "Modem info: %s", _modem->getModemInfo().c_str());
-
-            //Unlock your SIM card with a PIN if needed.
-            const char* pin = GetConfig(const char*, MODEM_PIN);
-            if (pin && _modem->getSimStatus() != 3 && !_modem->simUnlock(pin))
-            {
-                LOGE(nameof(GSM), "Failed to unlock SIM.");
-                abort();
-                return;
-            }
 
             char actionQueueTaskNameBuf[configMAX_TASK_NAME_LEN];
             sprintf(actionQueueTaskNameBuf, "gsm%012d", xTaskGetTickCount());
@@ -324,14 +385,20 @@ namespace ReadieFur::EspGps
             delete _debugger;
             _debugger = nullptr;
             #endif
+            #ifdef BATTERY_ADC
+            _batteryService = nullptr;
+            #endif
         }
 
     public:
         GSM()
         {
-            ServiceEntrypointStackDepth += 1024;
+            ServiceEntrypointStackDepth += 2048;
             ServiceEntrypointPriority = configMAX_PRIORITIES * 0.4;
             SetupGPIO();
+            #ifdef BATTERY_ADC
+            AddDependencyType<Battery>();
+            #endif
         }
 
         ~GSM()

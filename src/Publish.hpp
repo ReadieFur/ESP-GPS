@@ -120,7 +120,7 @@ namespace ReadieFur::EspGps
 
                 #ifdef BATTERY_ADC
                 //TODO: Signal to the battery module to manage power.
-                vTaskDelay(pdMS_TO_TICKS(GetConfig(int, BATTERY_CHRG_INTERVAL)));
+                _batteryService->Sleep();
                 #else
                 //TODO: Change these intervals to be dynamic.
                 int interval = GetConfig(int, BATTERY_CHRG_INTERVAL);
