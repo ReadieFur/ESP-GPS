@@ -5,10 +5,12 @@
 #include "Config.h"
 
 #ifdef DEBUG
+// #define TEST_DELAY_ENABLE
 // #define TEST_GPS
 // #define TEST_MODEM
 // #define TEST_MQTT
 // #define TEST_BATTERY
+// #define TEST_MISC
 #endif
 
 #include "Service/ServiceManager.hpp"
@@ -38,14 +40,14 @@
 #define CHECK_SERVICE_RESULT(func) do {                                                 \
         ReadieFur::Service::EServiceResult result = func;                               \
         if (result == ReadieFur::Service::Ok) break;                                    \
-        LOGE("main", "[%d] Failed with result: %i", __LINE__, result);     \
+        LOGE("main", "[%d] Failed with result: %i", __LINE__, result);                  \
         abort();                                                                        \
     } while (0)
 
 #define CHECK_ESP_RESULT(func) do {                                                     \
         esp_err_t result = func;                                                        \
         if (result == ESP_OK) break;                                                    \
-        LOGE("main", "[%d] Failed with result: %s", __LINE__, esp_err_to_name(result));   \
+        LOGE("main", "[%d] Failed with result: %s", __LINE__, esp_err_to_name(result)); \
         abort();                                                                        \
     } while (0)
 
@@ -54,39 +56,47 @@ using namespace ReadieFur::EspGps;
 #ifdef DEBUG
 bool DoTests()
 {
-    #if false
+    #if defined(TEST_DELAY_ENABLE)
     vTaskDelay(pdMS_TO_TICKS(2000));
     #endif
     #if defined(TEST_GPS)
     #ifdef GPS_INTEGRATED
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GSM>());
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GSM>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<GSM>());
     return true;
     #endif
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GPS>());
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GPS>());
-    // esp_log_level_set(nameof(Location), ESP_LOG_VERBOSE);
-    // CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<Location>());
-    // CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<Location>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<GPS>());
+    // CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<Location>());
     return true;
     #elif defined(TEST_MODEM)
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GSM>());
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GSM>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<GSM>());
     GSM* gsmService = ReadieFur::Service::ServiceManager::GetService<GSM>();
     gsmService->WaitForModem(portMAX_DELAY);
     return true;
     #elif defined(TEST_MQTT)
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GSM>());
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GSM>());
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<MQTT>());
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<MQTT>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<GSM>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<MQTT>());
     return true;
     #elif defined(TEST_BATTERY)
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<Battery>());
+    // CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<GSM>());
+    Battery* batteryService = ReadieFur::Service::ServiceManager::GetService<Battery>();
+    // batteryService->DoSystemManagement = true;
+    batteryService->Sleep();
     return true;
-    #elif false
-    for (int i = 0; i < GPIO_NUM_MAX; i++)
-        LOGI("main", "GPIO%i valid for wakeup: %i", i, esp_sleep_is_valid_wakeup_gpio((gpio_num_t)i));
+    #elif defined(TEST_MISC)
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<Battery>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GSM>());
+    auto services = ReadieFur::Service::ServiceManager::GetServices();
+    for (auto &&service : services)
+    {
+        LOGI("main", "Service: %s", service.name());
+    }
+    vTaskDelay(pdMS_TO_TICKS(2000));
+    auto res = ReadieFur::Service::ServiceManager::SuspendService<Battery>();
+    LOGD("main", "Battery suspended: %i", res);
+    vTaskDelay(pdMS_TO_TICKS(10000));
+    res = ReadieFur::Service::ServiceManager::ResumeService<Battery>();
+    LOGD("main", "Battery resumed: %i", res);
     return true;
     #endif
     return false;
@@ -162,7 +172,7 @@ void setup()
     #ifdef BATTERY_ADC
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<Battery>());
     Battery* batteryService = ReadieFur::Service::ServiceManager::GetService<Battery>();
-    /* The exit deep sleep event wont be fired here as the other components won't be ready to receive it yet.
+    /* The exit deep sleep event won't be fired here as the other components won't be ready to receive it yet.
      * We can enable the system management though as the external components should already be configured in their deep sleep state (meaning we can go back to sleep again right away if needs be).
      */
     switch (resetReason)

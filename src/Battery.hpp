@@ -1,6 +1,7 @@
 #pragma once
 
 // #ifdef BATTERY_ADC
+#include <freertos/FreeRTOS.h>
 #include <Arduino.h>
 #include "Board.h"
 #include <esp_sleep.h>
@@ -18,6 +19,16 @@
 #include <WString.h>
 #include <stdint.h>
 #include "Helpers.hpp"
+#include <freertos/task.h>
+#include <Event/ManualResetEvent.hpp>
+#include <Service/ServiceManager.hpp>
+#ifdef DEBUG
+#include <Diagnostic/DiagnosticsService.hpp>
+#endif
+// #define SHUTDOWN_SERIAL_MONITOR
+#ifdef SHUTDOWN_SERIAL_MONITOR
+#include "SerialMonitor.hpp"
+#endif
 
 #define __BATTERY_ADC_REF_VOLTAGE 3.3
 #define __BATTERY_ADC_VREF 1100
@@ -57,6 +68,7 @@ namespace ReadieFur::EspGps
         uint32_t _chargeVoltage = 0;
         #endif
         EState _state = EState::Unknown;
+        Event::ManualResetEvent _sleepInterrupt;
 
         String MsToFormattedString(uint32_t ms)
         {
@@ -97,6 +109,21 @@ namespace ReadieFur::EspGps
                 result += "Critical ";
             result.trim();
             return result;
+        }
+
+        String SleepTypeToString(ESleepType sleepType)
+        {
+            switch (sleepType)
+            {
+            case ESleepType::Deep:
+                return "Deep";
+            case ESleepType::Light:
+                return "Light";
+            case ESleepType::Task:
+                return "Task";
+            default:
+                return "Unknown";
+            }
         }
 
         uint SampleADC(int adcPin, float dividerRatio = 1.0)
@@ -167,6 +194,85 @@ namespace ReadieFur::EspGps
             }
         }
 
+        //Run sleep tasks on this thread rather than the one the calls the sleep function.
+        void SleepInternal()
+        {
+            uint64_t sleepTime = GetSleepDuration();
+
+            ESleepType sleepType;
+            if (_state & EState::Charging)
+                sleepType = ESleepType::Task;
+            else if (_state & EState::Critical) //TODO: Debate wether this state should be used even when charging if the battery is critically low.
+                sleepType = ESleepType::Deep;
+            else if (_state & EState::Low)
+                sleepType = ESleepType::Deep;
+            else if (_state & EState::Ok)
+                sleepType = ESleepType::Deep;
+            else
+            {
+                LOGE(nameof(Battery), "Failed to sleep, unknown state: %s", StateToString(_state).c_str());
+                return;
+            }
+
+            LOGD(nameof(Battery), "Entering %s sleep for %s...", SleepTypeToString(sleepType).c_str(), MsToFormattedString(sleepTime).c_str());
+            vTaskDelay(pdMS_TO_TICKS(100)); //Give the system a chance to log the message before sleeping.
+
+            OnBeforeSleep.Dispatch(sleepType);
+
+            #if !defined(TEST_BATTERY) || true
+            switch (sleepType)
+            {
+            case ESleepType::Deep:
+            {
+                static const std::vector<std::type_index> exemptServices =
+                {
+                    #ifdef DEBUG
+                    std::type_index(typeid(ReadieFur::Diagnostic::DiagnosticsService)),
+                    #endif
+                    #ifdef SHUTDOWN_SERIAL_MONITOR
+                    std::type_index(typeid(ReadieFur::EspGps::SerialMonitor)),
+                    #endif
+                    std::type_index(typeid(Battery))
+                };
+                std::vector<std::type_index> services = ReadieFur::Service::ServiceManager::GetServices();
+                //Iterate in reverse as the last item is the first to shutdown.
+                for (auto it = services.rbegin(); it != services.rend(); ++it)
+                {
+                    if (std::find(exemptServices.begin(), exemptServices.end(), *it) != exemptServices.end())
+                        continue;
+
+                    ReadieFur::Service::EServiceResult res = ReadieFur::Service::ServiceManager::StopService(*it); //This waits for the service to end.
+                    if (res != ReadieFur::Service::EServiceResult::Ok)
+                        LOGW(nameof(Battery), "Failed to stop service: %s, %i", it->name(), res);
+                    else
+                        LOGV(nameof(Battery), "Stopped service: %s", it->name());
+                }
+                esp_deep_sleep(sleepTime * 1000);
+                break;
+            }
+            case ESleepType::Light:
+            {
+                esp_sleep_enable_timer_wakeup(sleepTime * 1000);
+                esp_light_sleep_start();
+                break;
+            }
+            case ESleepType::Task:
+            {
+                vTaskSuspendAll(); //Pause all other code execution (only the calling context remains active because task switching is disabled, interrupts are still active).
+                vTaskDelay(pdMS_TO_TICKS(sleepTime));
+                xTaskResumeAll();
+                break;
+            }
+            default:
+                break;
+            }
+            #endif
+
+            _sleepInterrupt.Clear();
+
+            OnAfterSleep.Dispatch(sleepType);
+        }
+
     protected:
         void RunServiceImpl() override
         {
@@ -180,13 +286,13 @@ namespace ReadieFur::EspGps
                 #endif
 
                 //TODO: Check if the wake-up reason was due to motion, and if it was, don't force the device into sleep until one publish has been attempted.
-                if (DoSystemManagement && _state & Critical)
-                    Sleep();
+                if ((DoSystemManagement && _state & Critical) || _sleepInterrupt.IsSet())
+                    SleepInternal();
 
                 #ifdef TEST_BATTERY
-                vTaskDelay(pdMS_TO_TICKS(1000));
+                vTaskDelay(_sleepInterrupt.WaitOne(pdMS_TO_TICKS(1000))); //Wait for a sleep signal before the next iteration or for one second to pass.
                 #else
-                vTaskDelay(pdMS_TO_TICKS(1 * 1000));
+                vTaskDelay(_sleepInterrupt.WaitOne(pdMS_TO_TICKS(1 * 1000)));
                 #endif
             }
         }
@@ -238,10 +344,6 @@ namespace ReadieFur::EspGps
                 abort();
             }
             #endif
-
-            #ifdef TEST_BATTERY
-            DoSystemManagement = true;
-            #endif
         }
 
         ~Battery()
@@ -251,6 +353,7 @@ namespace ReadieFur::EspGps
 
         uint GetSleepDuration()
         {
+            #if !defined(TEST_BATTERY) || false
             if (_state & EState::Charging)
                 return GetConfig(int, BATTERY_CHRG_INTERVAL);
             else if (_state & EState::Critical)
@@ -261,44 +364,14 @@ namespace ReadieFur::EspGps
                 return GetConfig(int, BATTERY_OK_INTERVAL);
             else //Shouldn't be reached.
                 return GetConfig(int, BATTERY_OK_INTERVAL);
+            #else
+            return 5000;
+            #endif
         }
 
         void Sleep()
         {
-            uint64_t sleepTime = GetSleepDuration();
-
-            if (_state & EState::Charging)
-            {
-                LOGD(nameof(Battery), "Entering task sleep for %s.", MsToFormattedString(sleepTime).c_str());
-                #ifndef TEST_BATTERY
-                OnBeforeSleep.Dispatch(ESleepType::Task);
-                vTaskDelay(pdMS_TO_TICKS(sleepTime));
-                OnAfterSleep.Dispatch(ESleepType::Task);
-                #endif
-            }
-            else if (_state & EState::Critical) //TODO: Debate wether this state should be used even when charging if the battery is critically low.
-            {
-                LOGD(nameof(Battery), "Entering deep sleep for %s.", MsToFormattedString(sleepTime).c_str());
-                #ifndef TEST_BATTERY
-                OnBeforeSleep.Dispatch(ESleepType::Deep);
-                esp_deep_sleep(sleepTime * 1000);
-                OnAfterSleep.Dispatch(ESleepType::Deep); //Shouldn't ever be run because deep sleep will reset the program.
-                #endif
-            }
-            else if (_state & EState::Low || _state & EState::Ok)
-            {
-                LOGD(nameof(Battery), "Entering light sleep for %s.", MsToFormattedString(sleepTime).c_str());
-                #ifndef TEST_BATTERY
-                OnBeforeSleep.Dispatch(ESleepType::Light);
-                esp_sleep_enable_timer_wakeup(sleepTime * 1000);
-                esp_light_sleep_start();
-                OnAfterSleep.Dispatch(ESleepType::Light);
-                #endif
-            }
-            else
-            {
-                LOGE(nameof(Battery), "Failed to sleep, unknown state: %s", StateToString(_state).c_str());
-            }
+            _sleepInterrupt.Set();
         }
 
         void GetStatus(double* batteryVoltage, double* chargeVoltage, EState* state)
