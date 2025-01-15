@@ -133,7 +133,20 @@ namespace ReadieFur::EspGps
             #if TINY_GSM_MQTT_CLI_COUNT > 0
             _modem = _gsmService->GetModem();
 
-            FullRelease(); //Clear any old connections as this code will fail of there are any, the downside to this is that it makes the boot much slower.
+            #if true
+            switch (esp_reset_reason())
+            {
+            case ESP_RST_UNKNOWN:
+            case ESP_RST_DEEPSLEEP:
+            case ESP_RST_POWERON:
+                FullRelease(); //Clear any old connections as this code will fail of there are any, the downside to this is that it makes the boot much slower.
+                break;
+            default:
+                break;
+            }
+            #else
+            //See GSM ModemInit as for why I am skipping this right now.
+            #endif
 
             _gsmService->QueueAction([this]()
             {

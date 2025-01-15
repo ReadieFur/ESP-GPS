@@ -202,7 +202,10 @@ namespace ReadieFur::EspGps
             {
                 // _modem->poweroff(); //This causes the device to power off but then reboot, so I will use the CFUN command instead to put the device into a low power state.
                 _modem->setPhoneFunctionality(7, false);
-                _modem->sleepEnable(true);
+                #ifdef MODEM_DTR
+                digitalWrite(MODEM_DTR, HIGH);
+                _modem->sleepEnable(true); //Requires a DTR signal to wake up.
+                #endif
                 vTaskDelay(pdMS_TO_TICKS(100));
             }
 
@@ -224,6 +227,7 @@ namespace ReadieFur::EspGps
 
         void ModemInit()
         {
+            #if true
             switch (esp_reset_reason())
             {
             case ESP_RST_UNKNOWN: //If we reboot from an unknown state then we should restart the modem as it could be in a broken state.
@@ -233,12 +237,13 @@ namespace ReadieFur::EspGps
                 vTaskDelay(pdMS_TO_TICKS(5000)); //Reboot takes about x seconds.
                 break;
             default:
-                #if defined(DEBUG) && false
-                _modem->restart();
-                vTaskDelay(pdMS_TO_TICKS(5000));
-                #endif
                 break;
             }
+            #else
+            //TODO: There is currently a bug I have not detected with the deep sleep of the module and restoration of it on power-up, so for now I will always reset the module on boot.
+            _modem->restart();
+            vTaskDelay(pdMS_TO_TICKS(5000));
+            #endif
 
             if (!_modem->init())
             {
@@ -346,7 +351,10 @@ namespace ReadieFur::EspGps
                 case Battery::ESleepType::Light:
                     _modemReadyEvent.Clear();
                     _connectedEvent.Clear();
+                    #ifdef MODEM_DTR
+                    digitalWrite(MODEM_DTR, HIGH);
                     _modem->sleepEnable(true);
+                    #endif
                 default:
                     break;
                 }
@@ -360,7 +368,10 @@ namespace ReadieFur::EspGps
                     ModemInit();
                     break;
                 case Battery::ESleepType::Light:
+                    #ifdef MODEM_DTR
+                    digitalWrite(MODEM_DTR, LOW);
                     _modem->sleepEnable(false);
+                    #endif
                     _modemReadyEvent.Set();
                 default:
                     break;
