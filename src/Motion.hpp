@@ -39,7 +39,6 @@ namespace ReadieFur::EspGps
                 LOGE(nameof(Motion), "MPU6050 not found.");
                 abort();
             }
-            LOGV(nameof(Motion), "MPU6050 found.");
 
             if (!esp_sleep_is_valid_wakeup_gpio((gpio_num_t)MPU_INT))
             {

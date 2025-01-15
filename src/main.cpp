@@ -72,16 +72,7 @@ bool DoTests()
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GSM>());
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GSM>());
     GSM* gsmService = ReadieFur::Service::ServiceManager::GetService<GSM>();
-    gsmService->WaitForConnection(portMAX_DELAY);
-    TinyGsm* modem = gsmService->GetModem();
-    LOGD(nameof(GSM), "Modem sleep");
-    modem->sleepEnable(true);
-    vTaskDelay(pdMS_TO_TICKS(5000));
-    LOGD(nameof(GSM), "Modem wake");
-    modem->sleepEnable(false);
-    vTaskDelay(pdMS_TO_TICKS(5000));
-    LOGD(nameof(GSM), "Modem off");
-    modem->poweroff();
+    gsmService->WaitForModem(portMAX_DELAY);
     return true;
     #elif defined(TEST_MQTT)
     esp_log_level_set(nameof(GSM), ESP_LOG_VERBOSE);

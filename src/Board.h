@@ -11,7 +11,8 @@
 #define MPU_SDA                         8
 #define MPU_SCL                         9
 
-#define BATTERY_ADC                     4
+// #define BATTERY_ADC                     4
+// #define CHARGE_ADC                      
 #define BATTERY_DIV1                    10150.0     //Resistance in ohms of the first resistor in the voltage divider.
 #define BATTERY_DIV2                    10230.0     //Resistance in ohms of the second resistor in the voltage divider.
 #define BATTERY_CHG_VOLTAGE             4000        //Voltage (in millivolts) at which the battery is considered to be charging.
