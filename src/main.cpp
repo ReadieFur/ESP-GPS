@@ -4,6 +4,13 @@
 #include "Board.h"
 #include "Config.h"
 
+#ifdef DEBUG
+// #define TEST_GPS
+// #define TEST_MODEM
+// #define TEST_MQTT
+// #define TEST_BATTERY
+#endif
+
 #include "Service/ServiceManager.hpp"
 #include "SerialMonitor.hpp"
 #include "GPS.hpp"
@@ -23,40 +30,88 @@
 #include "Location.hpp"
 #include "Publish.hpp"
 #include "Checkpoint.hpp"
+#include "Network/WiFi/Modem.hpp"
 #include "Network/WiFi/EspNow.hpp"
-
-#ifdef DEBUG
-// #define TEST_GPS
-// #define TEST_MQTT
-#endif
+#include "Network/WiFi/OTA.hpp"
+#include <esp_system.h>
 
 #define CHECK_SERVICE_RESULT(func) do {                                                 \
         ReadieFur::Service::EServiceResult result = func;                               \
         if (result == ReadieFur::Service::Ok) break;                                    \
-        LOGE(pcTaskGetName(NULL), "[%d] Failed with result: %i", __LINE__, result);     \
+        LOGE("main", "[%d] Failed with result: %i", __LINE__, result);     \
         abort();                                                                        \
     } while (0)
 
 #define CHECK_ESP_RESULT(func) do {                                                     \
         esp_err_t result = func;                                                        \
         if (result == ESP_OK) break;                                                    \
-        LOGE(pcTaskGetName(NULL), "[%d] Failed with result: %s", __LINE__, esp_err_to_name(result));   \
+        LOGE("main", "[%d] Failed with result: %s", __LINE__, esp_err_to_name(result));   \
         abort();                                                                        \
     } while (0)
 
 using namespace ReadieFur::EspGps;
 
-void CheckWakeupReason()
+#ifdef DEBUG
+bool DoTests()
 {
-    esp_sleep_source_t wakeupCause = esp_sleep_get_wakeup_cause();
+    #if defined(TEST_GPS)
+    #ifdef GPS_INTEGRATED
+    esp_log_level_set(nameof(GSM), ESP_LOG_VERBOSE);
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GSM>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GSM>());
+    return true;
+    #endif
+    esp_log_level_set(nameof(GPS), ESP_LOG_VERBOSE);
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GPS>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GPS>());
+    // esp_log_level_set(nameof(Location), ESP_LOG_VERBOSE);
+    // CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<Location>());
+    // CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<Location>());
+    return true;
+    #elif defined(TEST_MODEM)
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GSM>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GSM>());
+    GSM* gsmService = ReadieFur::Service::ServiceManager::GetService<GSM>();
+    gsmService->WaitForConnection(portMAX_DELAY);
+    TinyGsm* modem = gsmService->GetModem();
+    LOGD(nameof(GSM), "Modem sleep");
+    modem->sleepEnable(true);
+    vTaskDelay(pdMS_TO_TICKS(5000));
+    LOGD(nameof(GSM), "Modem wake");
+    modem->sleepEnable(false);
+    vTaskDelay(pdMS_TO_TICKS(5000));
+    LOGD(nameof(GSM), "Modem off");
+    modem->poweroff();
+    return true;
+    #elif defined(TEST_MQTT)
+    esp_log_level_set(nameof(GSM), ESP_LOG_VERBOSE);
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GSM>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GSM>());
+    esp_log_level_set(nameof(MQTT), ESP_LOG_VERBOSE);
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<MQTT>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<MQTT>());
+    return true;
+    #elif defined(TEST_BATTERY)
+    esp_log_level_set(nameof(Battery), ESP_LOG_VERBOSE);
+    return true;
+    #endif
+    return false;
+}
+#endif
+
+void CheckWakeupReason(esp_reset_reason_t& resetReason, esp_sleep_source_t& wakeupSource)
+{
+    resetReason = esp_reset_reason();
+    wakeupSource = esp_sleep_get_wakeup_cause();
+
     auto lastTrigger = Storage::Cache["trigger"];
     if (lastTrigger.isNull())
     {
         //If the last trigger is unset then the last run should be considered successful.
-        Storage::Cache["trigger"] = wakeupCause;
+        Storage::Cache["trigger"] = wakeupSource;
         if (!Storage::Save())
         {
-            LOGE(pcTaskGetName(NULL), "Failed to save wakeup reason.");
+            LOGE("main", "Failed to save wakeup reason.");
             // abort();
         }
         return;
@@ -64,19 +119,19 @@ void CheckWakeupReason()
 
     //Otherwise if the last run failed, keep the trigger as the old value...
     //But only if the current wakeup trigger is less important than the old one.
-    switch (wakeupCause)
+    switch (wakeupSource)
     {
     //The following take priority over the previous trigger.
     case ESP_SLEEP_WAKEUP_EXT0: //Interrupt.
     case ESP_SLEEP_WAKEUP_TOUCHPAD: //TODO: Voltage change.
     case ESP_SLEEP_WAKEUP_GPIO: //Pin.
-        Storage::Cache["trigger"] = wakeupCause;
+        Storage::Cache["trigger"] = wakeupSource;
         if (!Storage::Save())
         {
-            LOGE(pcTaskGetName(NULL), "Failed to save wakeup reason.");
+            LOGE("main", "Failed to save wakeup reason.");
             // abort();
         }
-        return;
+        break;
     //Otherwise keep the trigger as the old one (as we will retry the failed trigger).
     default:
         return;
@@ -87,92 +142,84 @@ void setup()
 {
     #ifdef DEBUG
     esp_log_level_set("*", ESP_LOG_VERBOSE);
-    // esp_log_level_set("*", ESP_LOG_DEBUG);
     #else
     esp_log_level_set("*", ESP_LOG_INFO);
     #endif
 
-    #if defined(DEBUG) && false
-    vTaskDelay(pdMS_TO_TICKS(2000));
+    #ifdef DEBUG
+    // vTaskDelay(pdMS_TO_TICKS(2000));
+    #endif
+
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<SerialMonitor>());
+
+    #if defined(DEBUG) && true
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<ReadieFur::Diagnostic::DiagnosticsService>());
     #endif
 
     Storage::Init();
 
-    #ifdef MPU_INT
-    if (!Motion::Configure())
+    #ifdef DEBUG
+    if (DoTests())
+        return; //Tests should be independent of the main system, so return when they are done.
+    #endif
+
+    esp_reset_reason_t resetReason;
+    esp_sleep_source_t wakeupSource;
+    CheckWakeupReason(resetReason, wakeupSource);
+
+    #ifdef BATTERY_ADC
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<Battery>());
+    Battery* batteryService = ReadieFur::Service::ServiceManager::GetService<Battery>();
+    /* The exit deep sleep event wont be fired here as the other components won't be ready to receive it yet.
+     * We can enable the system management though as the external components should already be configured in their deep sleep state (meaning we can go back to sleep again right away if needs be).
+     */
+    switch (resetReason)
     {
-        LOGE(pcTaskGetName(NULL), "Failed to configure motion sensor.");
-        abort();
+    case ESP_RST_DEEPSLEEP:
+        batteryService->DoSystemManagement = true;
+        break;
+    default:
+        //Default is false.
+        break;
     }
     #endif
 
-    CheckWakeupReason();
-
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<SerialMonitor>());
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<SerialMonitor>());
-
-    #ifdef DEBUG
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<ReadieFur::Diagnostic::DiagnosticsService>());
-    // CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<ReadieFur::Diagnostic::DiagnosticsService>());
+    #ifdef MPU_INT
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<Motion>());
     #endif
 
-    #ifdef BATTERY_ADC
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<Battery>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<GSM>());
+    GSM* gsmService = ReadieFur::Service::ServiceManager::GetService<GSM>();
+    gsmService->WaitForModem(); //Will fail internally if the modem does not respond after a certain amount of time (desired behaviour).
+
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<GPS>());
+
+    // gsmService->WaitForConnection(pdMS_TO_TICKS(20 * 1000));
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<Location>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<MQTT>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<Publish>());
+
+    #if defined(ENABLE_ESPNOW) || defined(ENABLE_OTA)
+    ReadieFur::Network::WiFi::Modem::Init();
+    wifi_config_t apConfig =
+    {
+        .ap =
+        {
+            .ssid_len = sizeof(AP_SSID),
+            .channel = 1,
+            .ssid_hidden = true,
+            .beacon_interval = 100,
+        }
+    };
+    memcpy(apConfig.ap.ssid, AP_SSID, sizeof(AP_SSID));
+    ReadieFur::Network::WiFi::Modem::ConfigureInterface(WIFI_IF_AP, apConfig);
     #endif
 
-    #if defined(TEST_GPS)
-    #ifdef GPS_INTEGRATED
-    esp_log_level_set(nameof(GSM), ESP_LOG_VERBOSE);
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GSM>());
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GSM>());
-    #endif
-    esp_log_level_set(nameof(GPS), ESP_LOG_VERBOSE);
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GPS>());
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GPS>());
-    // esp_log_level_set(nameof(Location), ESP_LOG_VERBOSE);
-    // CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<Location>());
-    // CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<Location>());
-    return;
-    #elif defined(TEST_MQTT)
-    esp_log_level_set(nameof(GSM), ESP_LOG_VERBOSE);
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GSM>());
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GSM>());
-    esp_log_level_set(nameof(MQTT), ESP_LOG_VERBOSE);
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<MQTT>());
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<MQTT>());
-    return;
-    #endif
-
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GSM>());
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GPS>());
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<Location>());
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<MQTT>());
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<Publish>());
-
-    gpio_deep_sleep_hold_en();
-
-    #ifdef BATTERY_ADC
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<Battery>());
-    #endif
-
-    #ifdef GPS_INTEGRATED
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GSM>());
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GPS>());
-    #else
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GPS>());
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GSM>());
-    #endif
-    GSM* _gsmService = ReadieFur::Service::ServiceManager::GetService<GSM>();
-    _gsmService->WaitForConnection(pdMS_TO_TICKS(20 * 1000));
-
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<Location>());
     #ifdef ENABLE_ESPNOW
     CHECK_ESP_RESULT(ReadieFur::Network::WiFi::EspNow::Init());
     ReadieFur::Network::WiFi::EspNow::SetPowerSaving(BATTERY_CHRG_INTERVAL);
     #endif
 
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<MQTT>());
-    _gsmService->WaitForConnection(pdMS_TO_TICKS(10 * 1000));
     #ifdef ENABLE_OTA
     httpd_config_t otaHttpdConfig = HTTPD_DEFAULT_CONFIG();
     otaHttpdConfig.task_priority = tskIDLE_PRIORITY + 5;
@@ -181,9 +228,12 @@ void setup()
     CHECK_ESP_RESULT(ReadieFur::Network::WiFi::OTA::Init(&otaHttpdConfig));
     #endif
 
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<Publish>());
+    LOGI("main", "Setup complete.");
 
-    CHECK_ESP_RESULT(ReadieFur::Network::WiFi::EspNow::Init()); //TODO: Move to own service file, just here for init testing.
+    #ifdef BATTERY_ADC
+    //Only enable the battery system management now that all the components are ready.
+    batteryService->DoSystemManagement = true;
+    #endif
 }
 
 void loop()
@@ -194,9 +244,9 @@ void loop()
 #ifndef ARDUINO
 extern "C" void app_main()
 {
+    TaskHandle_t mainTaskHandle = xTaskGetCurrentTaskHandle();
     setup();
-    while (true)
-        if (eTaskGetState(NULL) != eTaskState::eDeleted)
-            loop();
+    while (eTaskGetState(mainTaskHandle) != eTaskState::eDeleted)
+        loop();
 }
 #endif

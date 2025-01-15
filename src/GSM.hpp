@@ -54,6 +54,7 @@ namespace ReadieFur::EspGps
         TinyGsm* _modem;
         std::mutex _mutex;
         std::map<int, TinyGsmClient*> _clients;
+        Event::ManualResetEvent _modemReadyEvent;
         Event::ManualResetEvent _connectedEvent;
         TaskHandle_t _actionQueueTask;
         std::queue<SAction> _actionQueue;
@@ -194,6 +195,7 @@ namespace ReadieFur::EspGps
 
         void PowerOff()
         {
+            _modemReadyEvent.Clear();
             _connectedEvent.Clear();
 
             if (_modem != nullptr)
@@ -256,6 +258,7 @@ namespace ReadieFur::EspGps
                 return;
             }
 
+            _modemReadyEvent.Set();
         }
 
         static void ProcessActionQueue(void* param)
@@ -341,6 +344,7 @@ namespace ReadieFur::EspGps
                     PowerOff();
                     break;
                 case Battery::ESleepType::Light:
+                    _modemReadyEvent.Clear();
                     _connectedEvent.Clear();
                     _modem->sleepEnable(true);
                 default:
@@ -357,6 +361,7 @@ namespace ReadieFur::EspGps
                     break;
                 case Battery::ESleepType::Light:
                     _modem->sleepEnable(false);
+                    _modemReadyEvent.Set();
                 default:
                     break;
                 }
@@ -473,6 +478,11 @@ namespace ReadieFur::EspGps
         bool WaitForConnection(TickType_t timeout = portMAX_DELAY)
         {
             return _connectedEvent.WaitOne(timeout);
+        }
+
+        bool WaitForModem(TickType_t timeout = portMAX_DELAY)
+        {
+            return _modemReadyEvent.WaitOne(timeout);
         }
 
         //From my testing I have found that asynchronous communication causes errors on the GSM module, so instead we will create an action queue.
