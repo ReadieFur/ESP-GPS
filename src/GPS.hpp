@@ -338,6 +338,7 @@ namespace ReadieFur::EspGps
             {
                 switch (sleepType)
                 {
+                case Battery::ESleepType::Hibernate:
                 case Battery::ESleepType::Deep:
                     //Module will be shutdown by the battery service.
                     // PowerOff();
@@ -353,6 +354,7 @@ namespace ReadieFur::EspGps
             {
                 switch (sleepType)
                 {
+                case Battery::ESleepType::Hibernate:
                 case Battery::ESleepType::Deep:
                     //Won't be reached as deep sleep wakeup causes a system reset.
                     // PowerOn();

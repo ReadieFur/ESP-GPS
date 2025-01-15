@@ -29,6 +29,7 @@
 #ifdef SHUTDOWN_SERIAL_MONITOR
 #include "SerialMonitor.hpp"
 #endif
+#include <esp_timer.h>
 
 #define __BATTERY_ADC_REF_VOLTAGE 3.3
 #define __BATTERY_ADC_VREF 1100
@@ -55,6 +56,7 @@ namespace ReadieFur::EspGps
 
         enum ESleepType
         {
+            Hibernate,
             Deep,
             Light,
             Task
@@ -115,6 +117,8 @@ namespace ReadieFur::EspGps
         {
             switch (sleepType)
             {
+            case ESleepType::Hibernate:
+                return "Hibernate";
             case ESleepType::Deep:
                 return "Deep";
             case ESleepType::Light:
@@ -199,11 +203,12 @@ namespace ReadieFur::EspGps
         {
             uint64_t sleepTime = GetSleepDuration();
 
+            //TODO: Make this configurable as to which mode should be used for a given battery state.
             ESleepType sleepType;
             if (_state & EState::Charging)
-                sleepType = ESleepType::Task;
+                sleepType = ESleepType::Light;
             else if (_state & EState::Critical) //TODO: Debate wether this state should be used even when charging if the battery is critically low.
-                sleepType = ESleepType::Deep;
+                sleepType = ESleepType::Hibernate;
             else if (_state & EState::Low)
                 sleepType = ESleepType::Deep;
             else if (_state & EState::Ok)
@@ -222,6 +227,15 @@ namespace ReadieFur::EspGps
             #if !defined(TEST_BATTERY) || true
             switch (sleepType)
             {
+            case ESleepType::Hibernate:
+            {
+                //https://m1cr0lab-esp32.github.io/sleep-modes/hibernation-mode/
+                esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_OFF);
+                esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_SLOW_MEM, ESP_PD_OPTION_OFF);
+                esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_FAST_MEM, ESP_PD_OPTION_OFF);
+                esp_sleep_pd_config(ESP_PD_DOMAIN_XTAL, ESP_PD_OPTION_OFF);
+                //Fall through to the next block (deep sleep).
+            }
             case ESleepType::Deep:
             {
                 static const std::vector<std::type_index> exemptServices =
@@ -258,9 +272,19 @@ namespace ReadieFur::EspGps
             }
             case ESleepType::Task:
             {
+                #if false
                 vTaskSuspendAll(); //Pause all other code execution (only the calling context remains active because task switching is disabled, interrupts are still active).
-                vTaskDelay(pdMS_TO_TICKS(sleepTime));
+                vTaskDelay(pdMS_TO_TICKS(sleepTime)); //Cannot be called while the task scheduler is suspended.
                 xTaskResumeAll();
+                #elif true
+                vTaskSuspendAll();
+                ets_delay_us(sleepTime * 1000); //Use the esp32 delay function instead, this halts the entire CPU I believe, not just the FreeRTOS task scheduler. This is a busy loop internally which isn't ideal for power consumption.
+                //Other alternative is to use light sleep again.
+                xTaskResumeAll();
+                #else
+                esp_sleep_enable_timer_wakeup(sleepTime * 1000);
+                esp_light_sleep_start();
+                #endif
                 break;
             }
             default:

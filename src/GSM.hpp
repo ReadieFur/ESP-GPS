@@ -345,10 +345,6 @@ namespace ReadieFur::EspGps
             {
                 switch (sleepType)
                 {
-                case Battery::ESleepType::Deep:
-                    //Module will be shutdown by the battery service.
-                    // PowerOff();
-                    break;
                 case Battery::ESleepType::Light:
                     _modemReadyEvent.Clear();
                     _connectedEvent.Clear();
@@ -364,11 +360,6 @@ namespace ReadieFur::EspGps
             {
                 switch (sleepType)
                 {
-                case Battery::ESleepType::Deep:
-                    //Won't be reached as deep sleep wakeup causes a system reset.
-                    // PowerOn();
-                    // ModemInit();
-                    break;
                 case Battery::ESleepType::Light:
                     #ifdef MODEM_DTR
                     digitalWrite(MODEM_DTR, LOW);
