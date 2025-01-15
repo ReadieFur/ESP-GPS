@@ -16,6 +16,7 @@
 #include "Storage.hpp"
 #include "Checkpoint.hpp"
 #include "SLocation.h"
+#include <Event/ManualResetEvent.hpp>
 
 namespace ReadieFur::EspGps
 {
@@ -27,6 +28,7 @@ namespace ReadieFur::EspGps
         MQTT* _mqttService = nullptr;
         #ifdef BATTERY_ADC
         Battery* _batteryService = nullptr;
+        Event::ManualResetEvent _wakeEvent;
         #endif
         JsonDocument _jsonBuffer;
         String _stringBuffer;
@@ -63,15 +65,19 @@ namespace ReadieFur::EspGps
         {
             _locationService = GetService<Location>();
             _mqttService = GetService<MQTT>();
+
             #ifdef BATTERY_ADC
             _batteryService = GetService<Battery>();
+            _batteryService->OnAfterSleep.Add([this](const Battery::ESleepType& sleepType) { _wakeEvent.Set(); });
             #endif
 
             _mqttService->WaitForConnection();
 
-
             while (!ServiceCancellationToken.IsCancellationRequested())
             {
+                #ifdef BATTERY_ADC
+                _wakeEvent.Clear();
+                #endif
                 ClearBuffers();
 
                 SLocation location;
@@ -121,6 +127,7 @@ namespace ReadieFur::EspGps
                 #ifdef BATTERY_ADC
                 //TODO: Signal to the battery module to manage power.
                 _batteryService->Sleep();
+                _wakeEvent.WaitOne(); //Wait for the wake event to be set before continuing, otherwise messages will be spammed as the sleep call is non-blocking.
                 #else
                 //TODO: Change these intervals to be dynamic.
                 int interval = GetConfig(int, BATTERY_CHRG_INTERVAL);
