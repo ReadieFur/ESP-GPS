@@ -166,9 +166,20 @@ void setup()
     _gsmService->WaitForConnection(pdMS_TO_TICKS(20 * 1000));
 
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<Location>());
+    #ifdef ENABLE_ESPNOW
+    CHECK_ESP_RESULT(ReadieFur::Network::WiFi::EspNow::Init());
+    ReadieFur::Network::WiFi::EspNow::SetPowerSaving(BATTERY_CHRG_INTERVAL);
+    #endif
 
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<MQTT>());
     _gsmService->WaitForConnection(pdMS_TO_TICKS(10 * 1000));
+    #ifdef ENABLE_OTA
+    httpd_config_t otaHttpdConfig = HTTPD_DEFAULT_CONFIG();
+    otaHttpdConfig.task_priority = tskIDLE_PRIORITY + 5;
+    otaHttpdConfig.server_port = 81;
+    otaHttpdConfig.ctrl_port += 1;
+    CHECK_ESP_RESULT(ReadieFur::Network::WiFi::OTA::Init(&otaHttpdConfig));
+    #endif
 
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<Publish>());
 

@@ -21,6 +21,8 @@
 #define MOTION_DURATION         200                 //How long should the device be in motion before waking up (1 second = 100).
 
 #define AP_SSID                 "espgps"
+#define ENABLE_ESPNOW                               //Enable ESPNow for communication with other devices.
+#define ENABLE_OTA                                  //Enable OTA updates.
 
 //Developer options.
 #define DUMP_AT_COMMANDS
