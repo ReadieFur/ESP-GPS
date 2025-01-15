@@ -25,9 +25,10 @@
 
 // #define BATTERY_ADC                     35
 // #define CHARGE_ADC                      36
-// #define BATTERY_DIV1                    10000.0        //Resistance in ohms of the first resistor in the voltage divider.
-// #define BATTERY_DIV2                    10000.0        //Resistance in ohms of the second resistor in the voltage divider.
-// #define BATTERY_CRIT_VOLTAGE            3550        //Shutdown voltage (in millivolts).
-// #define BATTERY_LOW_VOLTAGE             3650        //Low voltage (in millivolts).
-// #define CHG_VOLTAGE_MIN                 1000        //The minimum voltage threshold to consider if the device is charging.
-// #define NO_BATTERY_VOLTAGE              300         //For testing only, if the voltage is below this then consider the device to be plugged in.
+// #define BATTERY_DIV1                    10000.0     //Resistance in ohms of the first resistor in the voltage divider.
+// #define BATTERY_DIV2                    10000.0     //Resistance in ohms of the second resistor in the voltage divider.
+// #define CHARGE_DIV1                     10000.0     //Resistance in ohms of the first resistor in the voltage divider.
+// #define CHARGE_DIV2                     10000.0     //Resistance in ohms of the second resistor in the voltage divider.
+// #define BATTERY_OK_VOLTAGE              3700        //Voltage (in millivolts) at which the battery is considered to be charging.
+// #define BATTERY_LOW_VOLTAGE             3500        //Low voltage (in millivolts).
+// #define BATTERY_CRIT_VOLTAGE            3250        //Shutdown voltage (in millivolts).

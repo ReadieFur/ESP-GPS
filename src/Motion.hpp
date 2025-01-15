@@ -11,6 +11,7 @@
 #ifdef BATTERY_ADC
 #include "Battery.hpp"
 #endif
+#include "Helpers.hpp"
 
 namespace ReadieFur::EspGps
 {
@@ -59,6 +60,7 @@ namespace ReadieFur::EspGps
             err = esp_sleep_enable_ext0_wakeup((gpio_num_t)MPU_INT, 1);
             #else
             err = gpio_wakeup_enable((gpio_num_t)MPU_INT, GPIO_INTR_HIGH_LEVEL);
+            err = esp_sleep_enable_gpio_wakeup();
             #endif
             if (err != ESP_OK)
             {
@@ -68,7 +70,8 @@ namespace ReadieFur::EspGps
 
             //Deep sleep wakeup.
             //TODO: Set these globally so multiple "modules" can configure their own wakeup sources without unconfigring others.
-            err = esp_deep_sleep_enable_gpio_wakeup((1ULL << MPU_INT), ESP_GPIO_WAKEUP_GPIO_HIGH);
+            Helpers::DeepSleepEnableGpioWakeup((gpio_num_t)CHARGE_ADC);
+            err = Helpers::DeepSleepEnableGpioWakeupMode(ESP_GPIO_WAKEUP_GPIO_HIGH);
             if (err != ESP_OK)
             {
                 LOGE(nameof(Motion), "Failed to enable GPIO wakeup on MPU6050 interrupt.");

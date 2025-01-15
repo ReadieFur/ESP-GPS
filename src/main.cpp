@@ -54,14 +54,15 @@ using namespace ReadieFur::EspGps;
 #ifdef DEBUG
 bool DoTests()
 {
+    #if false
+    vTaskDelay(pdMS_TO_TICKS(2000));
+    #endif
     #if defined(TEST_GPS)
     #ifdef GPS_INTEGRATED
-    esp_log_level_set(nameof(GSM), ESP_LOG_VERBOSE);
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GSM>());
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GSM>());
     return true;
     #endif
-    esp_log_level_set(nameof(GPS), ESP_LOG_VERBOSE);
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GPS>());
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GPS>());
     // esp_log_level_set(nameof(Location), ESP_LOG_VERBOSE);
@@ -75,15 +76,17 @@ bool DoTests()
     gsmService->WaitForModem(portMAX_DELAY);
     return true;
     #elif defined(TEST_MQTT)
-    esp_log_level_set(nameof(GSM), ESP_LOG_VERBOSE);
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GSM>());
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<GSM>());
-    esp_log_level_set(nameof(MQTT), ESP_LOG_VERBOSE);
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<MQTT>());
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::StartService<MQTT>());
     return true;
     #elif defined(TEST_BATTERY)
-    esp_log_level_set(nameof(Battery), ESP_LOG_VERBOSE);
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<Battery>());
+    return true;
+    #elif false
+    for (int i = 0; i < GPIO_NUM_MAX; i++)
+        LOGI("main", "GPIO%i valid for wakeup: %i", i, esp_sleep_is_valid_wakeup_gpio((gpio_num_t)i));
     return true;
     #endif
     return false;
@@ -94,6 +97,8 @@ void CheckWakeupReason(esp_reset_reason_t& resetReason, esp_sleep_source_t& wake
 {
     resetReason = esp_reset_reason();
     wakeupSource = esp_sleep_get_wakeup_cause();
+
+    LOGD("main", "Reset reason: %i, Wakeup source: %i", resetReason, wakeupSource);
 
     auto lastTrigger = Storage::Cache["trigger"];
     if (lastTrigger.isNull())
@@ -135,10 +140,6 @@ void setup()
     esp_log_level_set("*", ESP_LOG_VERBOSE);
     #else
     esp_log_level_set("*", ESP_LOG_INFO);
-    #endif
-
-    #ifdef DEBUG
-    // vTaskDelay(pdMS_TO_TICKS(2000));
     #endif
 
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<SerialMonitor>());
