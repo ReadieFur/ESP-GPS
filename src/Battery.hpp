@@ -251,14 +251,14 @@ namespace ReadieFur::EspGps
 
         uint GetSleepDuration()
         {
-            if (_state & EState::Critical)
+            if (_state & EState::Charging)
+                return GetConfig(int, BATTERY_CHRG_INTERVAL);
+            else if (_state & EState::Critical)
                 return GetConfig(int, BATTERY_CRIT_SLEEP);
             else if (_state & EState::Low)
                 return GetConfig(int, BATTERY_LOW_INTERVAL);
             else if (_state & EState::Ok)
                 return GetConfig(int, BATTERY_OK_INTERVAL);
-            else if (_state & EState::Charging)
-                return GetConfig(int, BATTERY_CHRG_INTERVAL);
             else //Shouldn't be reached.
                 return GetConfig(int, BATTERY_OK_INTERVAL);
         }
@@ -267,7 +267,16 @@ namespace ReadieFur::EspGps
         {
             uint64_t sleepTime = GetSleepDuration();
 
-            if (_state & EState::Critical) //TODO: Debate wether this state should be used even when charging if the battery is critically low.
+            if (_state & EState::Charging)
+            {
+                LOGD(nameof(Battery), "Entering task sleep for %s.", MsToFormattedString(sleepTime).c_str());
+                #ifndef TEST_BATTERY
+                OnBeforeSleep.Dispatch(ESleepType::Task);
+                vTaskDelay(pdMS_TO_TICKS(sleepTime));
+                OnAfterSleep.Dispatch(ESleepType::Task);
+                #endif
+            }
+            else if (_state & EState::Critical) //TODO: Debate wether this state should be used even when charging if the battery is critically low.
             {
                 LOGD(nameof(Battery), "Entering deep sleep for %s.", MsToFormattedString(sleepTime).c_str());
                 #ifndef TEST_BATTERY
@@ -284,15 +293,6 @@ namespace ReadieFur::EspGps
                 esp_sleep_enable_timer_wakeup(sleepTime * 1000);
                 esp_light_sleep_start();
                 OnAfterSleep.Dispatch(ESleepType::Light);
-                #endif
-            }
-            else if (_state & EState::Charging)
-            {
-                LOGD(nameof(Battery), "Entering task sleep for %s.", MsToFormattedString(sleepTime).c_str());
-                #ifndef TEST_BATTERY
-                OnBeforeSleep.Dispatch(ESleepType::Task);
-                vTaskDelay(pdMS_TO_TICKS(sleepTime));
-                OnAfterSleep.Dispatch(ESleepType::Task);
                 #endif
             }
             else
