@@ -419,19 +419,6 @@ namespace ReadieFur::EspGps
             #endif
         }
 
-        ~GSM()
-        {
-            PowerOff();
-
-            if (_modem != nullptr)
-                delete _modem;
-            _modem = nullptr;
-
-            if (_debugger != nullptr)
-                delete _debugger;
-            _debugger = nullptr;
-        }
-
         //TODO: Return a custom client object that puts requests in a queue.
         TinyGsmClient* CreateClient()
         {
