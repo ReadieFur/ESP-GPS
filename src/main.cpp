@@ -10,6 +10,7 @@
 // #define TEST_MODEM
 // #define TEST_MQTT
 // #define TEST_BATTERY
+// #define TEST_SLEEP
 // #define TEST_MISC
 #endif
 
@@ -78,25 +79,26 @@ bool DoTests()
     return true;
     #elif defined(TEST_BATTERY)
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<Battery>());
-    // CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<GSM>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<GSM>());
+    ReadieFur::Service::ServiceManager::GetService<GSM>()->WaitForModem();
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<GPS>());
     Battery* batteryService = ReadieFur::Service::ServiceManager::GetService<Battery>();
     // batteryService->DoSystemManagement = true;
     batteryService->Sleep();
     return true;
     #elif defined(TEST_MISC)
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<Battery>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<Battery>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<Motion>());
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GSM>());
-    auto services = ReadieFur::Service::ServiceManager::GetServices();
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<GPS>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<Location>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<MQTT>());
+    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallService<Publish>());
+    std::vector<std::type_index> services = ReadieFur::Service::ServiceManager::GetServices();
+    LOGD("main", "Service count: %i", services.size());
     for (auto &&service : services)
-    {
         LOGI("main", "Service: %s", service.name());
-    }
-    vTaskDelay(pdMS_TO_TICKS(2000));
-    auto res = ReadieFur::Service::ServiceManager::SuspendService<Battery>();
-    LOGD("main", "Battery suspended: %i", res);
-    vTaskDelay(pdMS_TO_TICKS(10000));
-    res = ReadieFur::Service::ServiceManager::ResumeService<Battery>();
-    LOGD("main", "Battery resumed: %i", res);
+    HALT();
     return true;
     #endif
     return false;
@@ -195,8 +197,10 @@ void setup()
     gsmService->WaitForModem(); //Will fail internally if the modem does not respond after a certain amount of time (desired behaviour).
 
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<GPS>());
+    // GPS* gpsService = ReadieFur::Service::ServiceManager::GetService<GPS>();
+    // gpsService->WaitForLocation(pdMS_TO_TICKS(gpsService->GetPredictedTimeToFirstFix() * 1000)); //Increase runtime but try to get a GPS fix before continuing.
 
-    // gsmService->WaitForConnection(pdMS_TO_TICKS(20 * 1000));
+    gsmService->WaitForConnection(pdMS_TO_TICKS(20 * 1000));
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<Location>());
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<MQTT>());
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<Publish>());

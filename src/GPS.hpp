@@ -11,6 +11,7 @@
 #include "SLocation.h"
 #include <freertos/task.h>
 #include <esp_timer.h>
+#include <Event/ManualResetEvent.hpp>
 
 #if !defined(GPS_RX) || !defined(GPS_TX)
 #define GPS_INTEGRATED
@@ -25,7 +26,7 @@ namespace ReadieFur::EspGps
     {
     private:
         TinyGPSPlus _tinyGps;
-        bool _locationUpdated = false;
+        Event::ManualResetEvent _locationUpdatedEvent;
         SLocation _location;
         TickType_t _interval = pdMS_TO_TICKS(1000);
         std::mutex _locationMutex;
@@ -37,6 +38,7 @@ namespace ReadieFur::EspGps
         #ifdef BATTERY_ADC
         Battery* _batteryService;
         #endif
+        uint16_t _predictedTimeToFirstFix = 120; //Assume cold start.
 
         void SetupGPIO()
         {
@@ -63,6 +65,7 @@ namespace ReadieFur::EspGps
             //I should probably scan faster than this however not much data is output so the Rx buffer shouldn't get full.
             _interval = pdMS_TO_TICKS(1000 / 5);
             #endif
+            _predictedTimeToFirstFix = 120;
             #else
             _modemMutex->lock();
             //https://github.com/Xinyuan-LilyGO/LilyGO-T-A76XX/blob/main/examples/GPS_Acceleration/GPS_Acceleration.ino
@@ -123,16 +126,25 @@ namespace ReadieFur::EspGps
 
                 //Dynamically pick between using cold, warm and hot start.
                 double timeSinceBoot = US_TO_S(esp_timer_get_time());
-                /* If the module has been off for more than 10 minutes then do a cold start.
-                 * If the module has been off for less than 10 minutes but more than 30 seconds then do a warm start.
-                 * If the module has been off for less than 30 seconds then do a hot start.
+                /* If the module has been off for more than 10 minutes then do a cold start, average TTFF 30-120s.
+                 * If the module has been off for less than 10 minutes but more than 30 seconds then do a warm start, average TTFF 15-45.
+                 * If the module has been off for less than 30 seconds then do a hot start, average TTFF 1-10s.
                  */
                 if (timeSinceBoot > 10 * 60)
+                {
                     _modem->sendAT("+CGPSCOLD");
+                    _predictedTimeToFirstFix = 120;
+                }
                 else if (timeSinceBoot > 30)
+                {
                     _modem->sendAT("+CGPSWARM");
+                    _predictedTimeToFirstFix = 45;
+                }
                 else
+                {
                     _modem->sendAT("+CGPSHOT");
+                    _predictedTimeToFirstFix = 10;
+                }
             }
 
             _modem->setGPSBaud(115200);
@@ -198,7 +210,7 @@ namespace ReadieFur::EspGps
 
             _locationMutex.lock();
 
-            _locationUpdated = true;
+            _locationUpdatedEvent.Set();
             _location.age = xTaskGetTickCount();
             _location.latitude = _tinyGps.location.lat();
             _location.longitude = _tinyGps.location.lng();
@@ -234,7 +246,7 @@ namespace ReadieFur::EspGps
                     WRITE(c);
                 #endif
                 ParseChar(c);
-                if (logVerbose && _locationUpdated)
+                if (logVerbose && _locationUpdatedEvent.IsSet())
                     LOGI(nameof(GPS), "Location: %f, %f", _location.latitude, _location.longitude);
             }
             #else
@@ -251,7 +263,7 @@ namespace ReadieFur::EspGps
             {
                 _locationMutex.lock();
 
-                _locationUpdated = true;
+                _locationUpdatedEvent.Set();
                 _location.age = xTaskGetTickCount();
                 _location.latitude = lat2;
                 _location.longitude = lon2;
@@ -278,7 +290,7 @@ namespace ReadieFur::EspGps
             for (char c : gpsData)
             {
                 ParseChar(c);
-                if (logVerbose && _locationUpdated)
+                if (logVerbose && _locationUpdatedEvent.IsSet())
                     LOGI(nameof(GPS), "Lat: %.6f, Lng: %.6f, Acc: %.6f", _location.latitude, _location.longitude, _location.accuracy);
             }
             #endif
@@ -405,17 +417,27 @@ namespace ReadieFur::EspGps
             PowerOff();
         }
 
+        uint16_t GetPredictedTimeToFirstFix()
+        {
+            return _predictedTimeToFirstFix;
+        }
+
         bool IsUpdated()
         {
-            return _locationUpdated;
+            return _locationUpdatedEvent.IsSet();
         }
 
         void GetLocation(SLocation& outLocation)
         {
             _locationMutex.lock();
             outLocation = _location;
-            _locationUpdated = false;
+            _locationUpdatedEvent.Clear();
             _locationMutex.unlock();
+        }
+
+        void WaitForLocation(TickType_t timeout = portMAX_DELAY)
+        {
+            _locationUpdatedEvent.WaitOne(timeout);
         }
 
         TickType_t GetInterval()

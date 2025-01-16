@@ -26,7 +26,7 @@
 #include <Diagnostic/DiagnosticsService.hpp>
 #endif
 // #define SHUTDOWN_SERIAL_MONITOR
-#ifdef SHUTDOWN_SERIAL_MONITOR
+#ifndef SHUTDOWN_SERIAL_MONITOR
 #include "SerialMonitor.hpp"
 #endif
 #include <esp_timer.h>
@@ -201,12 +201,13 @@ namespace ReadieFur::EspGps
         //Run sleep tasks on this thread rather than the one the calls the sleep function.
         void SleepInternal()
         {
+            #ifndef TEST_SLEEP
             uint64_t sleepTime = GetSleepDuration();
 
             //TODO: Make this configurable as to which mode should be used for a given battery state.
             ESleepType sleepType;
             if (_state & EState::Charging)
-                sleepType = ESleepType::Light;
+                sleepType = ESleepType::Task;
             else if (_state & EState::Critical) //TODO: Debate wether this state should be used even when charging if the battery is critically low.
                 sleepType = ESleepType::Hibernate;
             else if (_state & EState::Low)
@@ -215,11 +216,14 @@ namespace ReadieFur::EspGps
                 sleepType = ESleepType::Deep;
             else
             {
-                LOGE(nameof(Battery), "Failed to sleep, unknown state: %s", StateToString(_state).c_str());
-                return;
+                LOGE(nameof(Battery), "Sleep, unknown state: %s", StateToString(_state).c_str());
+                sleepType = ESleepType::Task;
             }
+            #else
+            uint64_t sleepTime = 60 * 1000;
+            ESleepType sleepType = ESleepType::Deep;
+            #endif
 
-            LOGD(nameof(Battery), "Entering %s sleep for %s...", SleepTypeToString(sleepType).c_str(), MsToFormattedString(sleepTime).c_str());
             vTaskDelay(pdMS_TO_TICKS(100)); //Give the system a chance to log the message before sleeping.
 
             OnBeforeSleep.Dispatch(sleepType);
@@ -238,57 +242,84 @@ namespace ReadieFur::EspGps
             }
             case ESleepType::Deep:
             {
+                //TODO: Probably move this logic out of this class and into main.cpp.
                 static const std::vector<std::type_index> exemptServices =
                 {
                     #ifdef DEBUG
                     std::type_index(typeid(ReadieFur::Diagnostic::DiagnosticsService)),
                     #endif
-                    #ifdef SHUTDOWN_SERIAL_MONITOR
+                    #ifndef SHUTDOWN_SERIAL_MONITOR
                     std::type_index(typeid(ReadieFur::EspGps::SerialMonitor)),
                     #endif
+                    // std::type_index(typeid(Motion)),
                     std::type_index(typeid(Battery))
                 };
                 std::vector<std::type_index> services = ReadieFur::Service::ServiceManager::GetServices();
+                // LOGV(nameof(Battery), "Service count: %i", services.size());
                 //Iterate in reverse as the last item is the first to shutdown.
                 for (auto it = services.rbegin(); it != services.rend(); ++it)
                 {
                     if (std::find(exemptServices.begin(), exemptServices.end(), *it) != exemptServices.end())
                         continue;
 
+                    LOGV(nameof(Battery), "Stopping service: %s", it->name());
                     ReadieFur::Service::EServiceResult res = ReadieFur::Service::ServiceManager::StopService(*it); //This waits for the service to end.
                     if (res != ReadieFur::Service::EServiceResult::Ok)
                         LOGW(nameof(Battery), "Failed to stop service: %s, %i", it->name(), res);
-                    else
-                        LOGV(nameof(Battery), "Stopped service: %s", it->name());
+                    // else
+                    //     LOGV(nameof(Battery), "Stopped service: %s", it->name());
                 }
+                LOGD(nameof(Battery), "Entering %s sleep for %s...", SleepTypeToString(sleepType).c_str(), MsToFormattedString(sleepTime).c_str());
+                vTaskDelay(pdMS_TO_TICKS(100));
                 esp_deep_sleep(sleepTime * 1000);
                 break;
             }
             case ESleepType::Light:
             {
                 esp_sleep_enable_timer_wakeup(sleepTime * 1000);
+                #if !defined(DEBUG) || true //For debugging so the serial monitor doesn't get disconnected (fall through to task sleep).
+                LOGD(nameof(Battery), "Entering %s sleep for %s...", SleepTypeToString(sleepType).c_str(), MsToFormattedString(sleepTime).c_str());
+                vTaskDelay(pdMS_TO_TICKS(100));
                 esp_light_sleep_start();
                 break;
+                #endif
             }
             case ESleepType::Task:
             {
+                //TODO: Fix this.
+                LOGD(nameof(Battery), "Entering %s sleep for %s...", SleepTypeToString(sleepType).c_str(), MsToFormattedString(sleepTime).c_str());
+                // vTaskDelay(pdMS_TO_TICKS(100));
                 #if false
                 vTaskSuspendAll(); //Pause all other code execution (only the calling context remains active because task switching is disabled, interrupts are still active).
                 vTaskDelay(pdMS_TO_TICKS(sleepTime)); //Cannot be called while the task scheduler is suspended.
                 xTaskResumeAll();
-                #elif true
+                #elif false
                 vTaskSuspendAll();
                 ets_delay_us(sleepTime * 1000); //Use the esp32 delay function instead, this halts the entire CPU I believe, not just the FreeRTOS task scheduler. This is a busy loop internally which isn't ideal for power consumption.
                 //Other alternative is to use light sleep again.
                 xTaskResumeAll();
-                #else
+                #elif false
                 esp_sleep_enable_timer_wakeup(sleepTime * 1000);
                 esp_light_sleep_start();
+                #elif false
+                //vTaskSuspendAll causes issues with other code that uses FreeRTOS related objects (like queues) so I will instead only suspend tasks registered with the service manager.
+                std::vector<std::type_index> services = ReadieFur::Service::ServiceManager::GetServices();
+                for (auto &&service : services)
+                    ReadieFur::Service::ServiceManager::SuspendService(service);
+                vTaskDelay(pdMS_TO_TICKS(sleepTime));
+                for (auto &&service : services)
+                    ReadieFur::Service::ServiceManager::ResumeService(service);
+                #elif true
+                vTaskDelay(pdMS_TO_TICKS(sleepTime));
                 #endif
                 break;
             }
             default:
+            {
+                //Shouldn't be reached.
+                LOGE(nameof(Battery), "Sleep, unknown sleep type: %i", sleepType);
                 break;
+            }
             }
             #endif
 
@@ -387,7 +418,10 @@ namespace ReadieFur::EspGps
             else if (_state & EState::Ok)
                 return GetConfig(int, BATTERY_OK_INTERVAL);
             else //Shouldn't be reached.
+            {
+                LOGW(nameof(Battery), "Get sleep duration, unknown state: %s", StateToString(_state).c_str());
                 return GetConfig(int, BATTERY_OK_INTERVAL);
+            }
             #else
             return 5000;
             #endif

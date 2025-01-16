@@ -12,6 +12,7 @@
 #include <mutex>
 #include "SLocation.h"
 #include <time.h>
+#include <Event/AutoResetEvent.hpp>
 
 #define CALCULATE_LOCATION_ON_REQUEST
 #define FALLBACK_TO_GSM_ONLY_ON_REQUEST //Reduces network usage but increases the time to get a location by about 2-3 seconds.

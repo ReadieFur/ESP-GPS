@@ -54,6 +54,7 @@ namespace ReadieFur::EspGps
             _mpu.setInterruptPinLatch(false); //Testing with auto interrupt clear, should be ok.
             _mpu.setInterruptPinPolarity(false);
             _mpu.setMotionInterrupt(true);
+            // _mpu.setSampleRateDivisor(19); //1kHz / (19 + 1) = 50Hz (slow update rate, less power consumption).
 
             //Light sleep wakeup.
             #if SOC_PM_SUPPORT_EXT_WAKEUP
@@ -84,7 +85,7 @@ namespace ReadieFur::EspGps
             {
                 switch (sleepType)
                 {
-                case Battery::ESleepType::Deep:
+                case Battery::ESleepType::Hibernate:
                     _mpu.enableSleep(true);
                     break;
                 default:
@@ -95,7 +96,7 @@ namespace ReadieFur::EspGps
             {
                 switch (sleepType)
                 {
-                case Battery::ESleepType::Deep:
+                case Battery::ESleepType::Hibernate:
                     _mpu.enableSleep(false);
                     break;
                 default:
@@ -108,6 +109,7 @@ namespace ReadieFur::EspGps
 
             ServiceCancellationToken.WaitForCancellation();
 
+            // _mpu.enableSleep(true);
             _i2c.end();
         }
     
