@@ -178,7 +178,7 @@ namespace ReadieFur::EspGps
 
             #ifdef CHARGE_ADC
             //OR in the charging state.
-            if (_chargeVoltage > 1000) //TODO: Make this a configurable value.
+            if (_chargeVoltage > CHARGE_VOLTAGE) //TODO: Make this a configurable value.
                 newState = static_cast<EState>(newState | EState::Charging);
             else
                 newState = static_cast<EState>(newState | EState::Discharging);
@@ -220,7 +220,8 @@ namespace ReadieFur::EspGps
                 sleepType = ESleepType::Task;
             }
             #else
-            uint64_t sleepTime = 60 * 1000;
+            // uint64_t sleepTime = 60 * 1000;
+            uint64_t sleepTime = GetConfig(int, BATTERY_OK_INTERVAL);
             ESleepType sleepType = ESleepType::Deep;
             #endif
 

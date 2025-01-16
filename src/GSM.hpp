@@ -227,7 +227,7 @@ namespace ReadieFur::EspGps
 
         void ModemInit()
         {
-            #if true
+            #if !defined(ALWAYS_FULL_REBOOT)
             switch (esp_reset_reason())
             {
             case ESP_RST_UNKNOWN: //If we reboot from an unknown state then we should restart the modem as it could be in a broken state.

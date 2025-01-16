@@ -20,3 +20,4 @@
 #define BATTERY_OK_VOLTAGE              3700        //Voltage (in millivolts) at which the battery is considered to be charging.
 #define BATTERY_LOW_VOLTAGE             3500        //Low voltage (in millivolts).
 #define BATTERY_CRIT_VOLTAGE            3250        //Shutdown voltage (in millivolts).
+#define CHARGE_VOLTAGE                  4500        //Voltage (in millivolts) at which the battery is considered to be charging.

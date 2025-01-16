@@ -12,6 +12,7 @@
 // #define TEST_BATTERY
 // #define TEST_SLEEP
 // #define TEST_MISC
+#define ALWAYS_FULL_REBOOT
 #endif
 
 #include "Service/ServiceManager.hpp"
@@ -177,6 +178,7 @@ void setup()
     /* The exit deep sleep event won't be fired here as the other components won't be ready to receive it yet.
      * We can enable the system management though as the external components should already be configured in their deep sleep state (meaning we can go back to sleep again right away if needs be).
      */
+    #ifndef ALWAYS_FULL_REBOOT
     switch (resetReason)
     {
     case ESP_RST_DEEPSLEEP:
@@ -186,6 +188,7 @@ void setup()
         //Default is false.
         break;
     }
+    #endif
     #endif
 
     #ifdef MPU_INT
