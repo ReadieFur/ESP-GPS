@@ -237,6 +237,8 @@ namespace ReadieFur::EspGps
                 vTaskDelay(pdMS_TO_TICKS(5000)); //Reboot takes about x seconds.
                 break;
             default:
+            //     _modem->restart();
+            //     vTaskDelay(pdMS_TO_TICKS(5000)); //Reboot takes about x seconds.
                 break;
             }
             #else
