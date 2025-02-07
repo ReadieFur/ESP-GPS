@@ -376,7 +376,7 @@ namespace ReadieFur::EspGps
 
             char actionQueueTaskNameBuf[configMAX_TASK_NAME_LEN];
             sprintf(actionQueueTaskNameBuf, "gsm%012d", xTaskGetTickCount());
-            if (xTaskCreate(ProcessActionQueue, actionQueueTaskNameBuf, configIDLE_TASK_STACK_SIZE + 1024, this, ServiceEntrypointPriority, &_actionQueueTask) != pdPASS)
+            if (xTaskCreate(ProcessActionQueue, actionQueueTaskNameBuf, IDLE_TASK_STACK_SIZE + 1024, this, ServiceEntrypointPriority, &_actionQueueTask) != pdPASS)
             {
                 LOGE(nameof(GSM), "Failed to create action queue task.");
                 return;
@@ -480,7 +480,7 @@ namespace ReadieFur::EspGps
 
         //From my testing I have found that asynchronous communication causes errors on the GSM module, so instead we will create an action queue.
         //TODO: Make this "awaitable" instead of always blocking.
-        bool QueueAction(std::function<void()> action, uint32_t stackSize = configIDLE_TASK_STACK_SIZE, TickType_t timeout = portMAX_DELAY)
+        bool QueueAction(std::function<void()> action, uint32_t stackSize = IDLE_TASK_STACK_SIZE, TickType_t timeout = portMAX_DELAY)
         {
             //Don't mutex lock here.
 

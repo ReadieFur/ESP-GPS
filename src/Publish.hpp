@@ -101,7 +101,7 @@ namespace ReadieFur::EspGps
             }
 
             serializeJson(_jsonBuffer, _stringBuffer);
-            if (!_mqttService->Publish(_stringBuffer.c_str(), configIDLE_TASK_STACK_SIZE + 2048, pdTICKS_TO_MS(1000)))
+            if (!_mqttService->Publish(_stringBuffer.c_str(), IDLE_TASK_STACK_SIZE + 2048, pdTICKS_TO_MS(1000)))
             {
                 LOGE(nameof(Publish), "Failed to publish MQTT message.");
             }

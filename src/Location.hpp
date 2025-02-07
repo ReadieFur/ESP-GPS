@@ -126,7 +126,7 @@ namespace ReadieFur::EspGps
                 {
                     _lastGsmSample = 0;
                 }
-            }, configIDLE_TASK_STACK_SIZE + 1024);
+            }, IDLE_TASK_STACK_SIZE + 1024);
 
             _gsmSample = gsmSample;
         }
@@ -227,7 +227,7 @@ namespace ReadieFur::EspGps
                     LOGD(nameof(Location), "Type:%i, Lat: %.6f, Lng: %.6f, Acc: %.6f, Time: %ld", location.type, location.latitude, location.longitude, location.accuracy, location.timestamp);
                     vTaskDelay(pdMS_TO_TICKS(5000));
                 }
-            }, "location_dbg", configIDLE_TASK_STACK_SIZE + 1024 + 512, this, ServiceEntrypointPriority, nullptr);
+            }, "location_dbg", IDLE_TASK_STACK_SIZE + 1024 + 512, this, ServiceEntrypointPriority, nullptr);
             #endif
 
             TickType_t sampleLifetime;

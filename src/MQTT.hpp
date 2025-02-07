@@ -2,7 +2,6 @@
 
 #include "Service/AService.hpp"
 #include <PubSubClient.h>
-#include <Wstring.h>
 #include "Storage.hpp"
 #include "Logging.hpp"
 #include "Helpers.h"
@@ -203,7 +202,7 @@ namespace ReadieFur::EspGps
                     #else
                     _mqtt.loop();
                     #endif
-                }, configIDLE_TASK_STACK_SIZE + 1024);
+                }, IDLE_TASK_STACK_SIZE + 1024);
                 vTaskDelay(pdMS_TO_TICKS(1000));
             }
 
@@ -235,7 +234,7 @@ namespace ReadieFur::EspGps
             return _connectedEvent.WaitOne(timeout);
         }
 
-        bool Publish(const char* payload, uint32_t stackSize = configIDLE_TASK_STACK_SIZE, TickType_t timeout = portMAX_DELAY)
+        bool Publish(const char* payload, uint32_t stackSize = IDLE_TASK_STACK_SIZE, TickType_t timeout = portMAX_DELAY)
         {
             if (!WaitForConnection(timeout))
                 return false;

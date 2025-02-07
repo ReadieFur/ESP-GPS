@@ -1,9 +1,4 @@
 #include <freertos/FreeRTOS.h>
-
-#ifndef configIDLE_TASK_STACK_SIZE
-#define configIDLE_TASK_STACK_SIZE CONFIG_FREERTOS_IDLE_TASK_STACKSIZE
-#endif
-
 #include <freertos/task.h>
 #include "Logging.hpp"
 #include "Board.h"
@@ -21,7 +16,6 @@
 #endif
 
 #include "Service/ServiceManager.hpp"
-#include "SerialMonitor.hpp"
 #include "GPS.hpp"
 #include "GSM.hpp"
 #ifdef MPU_INT
@@ -159,8 +153,6 @@ void setup()
     #else
     esp_log_level_set("*", ESP_LOG_INFO);
     #endif
-
-    CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<SerialMonitor>());
 
     #if defined(DEBUG) && true
     CHECK_SERVICE_RESULT(ReadieFur::Service::ServiceManager::InstallAndStartService<ReadieFur::Diagnostic::DiagnosticsService>());

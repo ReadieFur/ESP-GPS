@@ -15,7 +15,10 @@
 #include "Logging.hpp"
 #include <Event/Event.hpp>
 #include <stdint.h>
-#include <esp_adc_cal.h>
+#include <esp_adc/adc_cali.h>
+#include <esp_adc/adc_cali_scheme.h>
+#include <adc_cali_interface.h>
+#include <adc_cali_schemes.h>
 #include <WString.h>
 #include <stdint.h>
 #include "Helpers.hpp"
@@ -24,10 +27,6 @@
 #include <Service/ServiceManager.hpp>
 #ifdef DEBUG
 #include <Diagnostic/DiagnosticsService.hpp>
-#endif
-// #define SHUTDOWN_SERIAL_MONITOR
-#ifndef SHUTDOWN_SERIAL_MONITOR
-#include "SerialMonitor.hpp"
 #endif
 #include <esp_timer.h>
 
@@ -64,7 +63,7 @@ namespace ReadieFur::EspGps
 
     private:
         std::mutex _mutex;
-        esp_adc_cal_characteristics_t* _adcChars;
+        adc_cali_handle_t _adcCaliHandle;
         uint32_t _batteryVoltage = 0;
         #ifdef CHARGE_ADC
         uint32_t _chargeVoltage = 0;
@@ -139,8 +138,8 @@ namespace ReadieFur::EspGps
                 //TODO: Detect that the battery is charging if the average of these samples keeps increasing steadily.
                 // uint32_t val = analogReadMilliVolts(adcPin);
                 uint16_t rawAdc = analogRead(adcPin);
-                uint32_t adcVoltageMv = esp_adc_cal_raw_to_voltage(rawAdc, _adcChars);
-                // double adcVoltage = (double)adcVoltageMv / 1000.0;
+                int adcVoltageMv = 0;
+                adc_cali_raw_to_voltage(_adcCaliHandle, rawAdc, &adcVoltageMv);
                 double voltage = (double)adcVoltageMv * dividerRatio;
                 #if defined(TEST_BATTERY) && false
                 LOGV(nameof(Battery), "ADC: %u, %f", rawAdc, voltage);
@@ -236,8 +235,12 @@ namespace ReadieFur::EspGps
             {
                 //https://m1cr0lab-esp32.github.io/sleep-modes/hibernation-mode/
                 esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_OFF);
+                #if SOC_PM_SUPPORT_RTC_SLOW_MEM_PD
                 esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_SLOW_MEM, ESP_PD_OPTION_OFF);
+                #endif
+                #if SOC_PM_SUPPORT_RTC_FAST_MEM_PD
                 esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_FAST_MEM, ESP_PD_OPTION_OFF);
+                #endif
                 esp_sleep_pd_config(ESP_PD_DOMAIN_XTAL, ESP_PD_OPTION_OFF);
                 //Fall through to the next block (deep sleep).
             }
@@ -248,9 +251,6 @@ namespace ReadieFur::EspGps
                 {
                     #ifdef DEBUG
                     std::type_index(typeid(ReadieFur::Diagnostic::DiagnosticsService)),
-                    #endif
-                    #ifndef SHUTDOWN_SERIAL_MONITOR
-                    std::type_index(typeid(ReadieFur::EspGps::SerialMonitor)),
                     #endif
                     // std::type_index(typeid(Motion)),
                     std::type_index(typeid(Battery))
@@ -364,14 +364,36 @@ namespace ReadieFur::EspGps
             ServiceEntrypointStackDepth += 2048;
 
             // gpio_deep_sleep_hold_en();
+            #if SOC_GPIO_SUPPORT_HOLD_IO_IN_DSLP && !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
             gpio_deep_sleep_hold_dis();
+            #endif
             esp_sleep_config_gpio_isolate();
 
             esp_err_t err;
 
-            _adcChars = (esp_adc_cal_characteristics_t*)calloc(1, sizeof(esp_adc_cal_characteristics_t));
-            esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_12, ADC_WIDTH_BIT_12, __BATTERY_ADC_VREF, _adcChars);
-            analogReadResolution(12);
+            #if ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
+            adc_cali_line_fitting_config_t caliConfig = {
+                .unit_id = ADC_UNIT_1,
+                .atten = ADC_ATTEN_DB_12,
+                .bitwidth = ADC_BITWIDTH_12,
+            };
+            if (adc_cali_create_scheme_line_fitting(&caliConfig, &_adcCaliHandle) != ESP_OK)
+            {
+                LOGE(nameof(Battery), "Failed to create ADC calibration scheme.");
+                abort();
+            }
+            #elif ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
+            adc_cali_curve_fitting_config_t caliConfig = {
+                .unit_id = ADC_UNIT_1,
+                .atten = ADC_ATTEN_DB_12,
+                .bitwidth = ADC_BITWIDTH_12,
+            };
+            if (adc_cali_create_scheme_curve_fitting(&caliConfig, &_adcCaliHandle) != ESP_OK)
+            {
+                LOGE(nameof(Battery), "Failed to create ADC calibration scheme.");
+                abort();
+            }
+            #endif
 
             pinMode(BATTERY_ADC, INPUT_PULLDOWN);
             if (err != ESP_OK)
@@ -404,7 +426,12 @@ namespace ReadieFur::EspGps
 
         ~Battery()
         {
-            free(_adcChars);
+            #if ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
+            adc_cali_delete_scheme_line_fitting(_adcCaliHandle);
+            #elif ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
+            adc_cali_delete_scheme_curve_fitting(_adcCaliHandle);
+            #endif
+            _adcCaliHandle = NULL;
         }
 
         uint GetSleepDuration()
