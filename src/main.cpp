@@ -1,4 +1,9 @@
 #include <freertos/FreeRTOS.h>
+
+#ifndef configIDLE_TASK_STACK_SIZE
+#define configIDLE_TASK_STACK_SIZE CONFIG_FREERTOS_IDLE_TASK_STACKSIZE
+#endif
+
 #include <freertos/task.h>
 #include "Logging.hpp"
 #include "Board.h"
